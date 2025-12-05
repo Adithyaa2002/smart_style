@@ -1,0 +1,169 @@
+/* Vendor Dashboard CSS */
+.vendor-dashboard {
+  display: flex;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
+}
+
+/* Sidebar */
+.vendor-sidebar {
+  width: 220px;
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.vendor-sidebar h2 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+/* Sidebar tabs stacked with no gap */
+.sidebar-tab {
+  padding: 12px;
+  cursor: pointer;
+}
+
+.sidebar-tab.active,
+.sidebar-tab:hover {
+  background-color: #e0f2ff;
+  font-weight: 600;
+}
+
+/* Logout button at bottom */
+.logout-bottom {
+  margin-top: auto;
+}
+
+.logout-btn {
+  width: 100%;
+  background-color: #ff6161;
+  color: #fff;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.logout-btn:hover {
+  background-color: #e74c4c;
+}
+
+/* Main Content */
+.vendor-main {
+  flex: 1;
+  padding: 20px;
+}
+
+/* Stats Cards */
+.stats-cards {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background-color: #2874f0;
+  color: #fff;
+  padding: 15px;
+  border-radius: 10px;
+  flex: 1;
+  min-width: 150px;
+  text-align: center;
+}
+
+/* Profile Section */
+.profile-section input,
+.profile-section textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+/* Products Section */
+.add-product-form input {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+.primary-btn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background-color: #fb641b;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background-color: #e55d17;
+}
+
+.product-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.product-card {
+  background-color: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  flex: 1 1 160px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.product-image-small {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  margin-bottom: 8px;
+}
+
+/* Remove button as rectangle box */
+.remove-btn-rect {
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  background-color: #ff4d4d;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.remove-btn-rect:hover {
+  background-color: #e04343;
+}
+
+/* Analytics Table */
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.analytics-table th, .analytics-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+}
+
+.analytics-table th {
+  background-color: #2874f0;
+  color: #fff;
+}

@@ -15,6 +15,9 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -24,6 +27,14 @@ const Signup = () => {
     setError("");
     setSuccess("");
     setLoading(true);
+
+    // Email Validation Regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address (name@domain.com)");
+      setLoading(false);
+      return;
+    }
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -45,9 +56,9 @@ const Signup = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            password: formData.password.trim(),
             role: formData.role,
           }),
         }
@@ -56,16 +67,28 @@ const Signup = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle backend validation errors array
+        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+          throw new Error(data.errors[0].msg);
+        }
         throw new Error(data.message || "Signup failed");
       }
 
-      setSuccess("Signup successful! Redirecting to login...");
-      setLoading(false);
+      setSuccess("Signup successful! Redirecting to dashboard...");
 
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
+      // Auto Login: Save token and redirect
+      if (data.token) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("token", data.token);
+
+        setTimeout(() => {
+          if (data.user.role === "admin") navigate("/admin-dashboard");
+          else if (data.user.role === "vendor") navigate("/vendor-dashboard");
+          else navigate("/customer-dashboard");
+          // Refresh to update App state (or use context)
+          window.location.href = data.user.role === "admin" ? "/admin-dashboard" : (data.user.role === "vendor" ? "/vendor-dashboard" : "/customer-dashboard");
+        }, 1500);
+      }
 
     } catch (err) {
       setLoading(false);
@@ -88,7 +111,7 @@ const Signup = () => {
               required
             />
           </div>
-          
+
           <div className="form-group">
             <input
               type="email"
@@ -99,29 +122,59 @@ const Signup = () => {
               required
             />
           </div>
-          
-          <div className="form-group">
+
+          <div className="form-group password-group" style={{ position: "relative" }}>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               name="password"
               placeholder="Password (min. 6 characters)"
               value={formData.password}
               onChange={handleChange}
               required
+              style={{ width: "100%", paddingRight: "40px" }}
             />
+            <span
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: "absolute",
+                right: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+                userSelect: "none"
+              }}
+            >
+              {showPassword ? "👁️" : "👁️‍🗨️"}
+            </span>
           </div>
-          
-          <div className="form-group">
+
+          <div className="form-group password-group" style={{ position: "relative" }}>
             <input
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               name="confirmPassword"
               placeholder="Confirm Password"
               value={formData.confirmPassword}
               onChange={handleChange}
               required
+              style={{ width: "100%", paddingRight: "40px" }}
             />
+            <span
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={{
+                position: "absolute",
+                right: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+                userSelect: "none"
+              }}
+            >
+              {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+            </span>
           </div>
-          
+
           {/* Role Selection */}
           <div className="role-selection">
             <label>I want to:</label>

@@ -30,10 +30,10 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   // Only hash the password if it's modified (or new)
   if (!this.isModified('password')) return next();
-  
+
   try {
     // Hash password with cost factor of 12
     this.password = await bcrypt.hash(this.password, 12);
@@ -44,7 +44,7 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare password method for login
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
   } catch (error) {
@@ -53,7 +53,7 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 // Remove password from JSON output
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.password;
   return user;

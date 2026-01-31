@@ -81,12 +81,14 @@ const Cart = () => {
                 <div className="item-price">
                   ${(item.price * item.quantity).toFixed(2)}
                 </div>
-                <button 
-                  className="remove-item-btn"
-                  onClick={() => removeFromCart(item.id)}
-                >
-                  🗑️ Remove
-                </button>
+                <button
+  className="remove-btn"
+  onClick={() => removeFromCart(item._id)}
+>
+  🗑 Remove
+</button>
+
+
               </div>
             </div>
           ))}

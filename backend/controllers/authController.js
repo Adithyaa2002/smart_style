@@ -1,12 +1,12 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-// Generate JWT Token - FIXED
+// Generate JWT Token
 const generateToken = (userId) => {
   return jwt.sign(
-    { userId }, 
-    process.env.JWT_SECRET, 
-    { expiresIn: '24h' } // Fixed: use string format
+    { userId },
+    process.env.JWT_SECRET,
+    { expiresIn: '24h' }
   );
 };
 
@@ -22,7 +22,6 @@ const signup = async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('User already exists:', email);
       return res.status(400).json({
         success: false,
         message: 'User already exists with this email'
@@ -40,9 +39,13 @@ const signup = async (req, res) => {
     await user.save();
     console.log('User registered successfully:', email);
 
+    // Auto-login: Generate token immediately
+    const token = generateToken(user._id);
+
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
+      token,
       user: {
         id: user._id,
         name: user.name,
@@ -92,7 +95,7 @@ const login = async (req, res) => {
     // Find user by email
     console.log("🔍 Searching for user in database...");
     const user = await User.findOne({ email });
-    
+
     if (!user) {
       console.log("❌ User not found in database:", email);
       return res.status(400).json({
@@ -101,15 +104,11 @@ const login = async (req, res) => {
       });
     }
 
-    console.log("✅ User found:", user.email);
-    console.log("🔑 Stored password hash:", user.password ? 'Exists' : 'Missing');
-    console.log("👤 User role:", user.role);
-
-    // Check password
+    // Verify Password
     console.log("🔒 Comparing passwords...");
     const isPasswordValid = await user.comparePassword(password);
     console.log("🔑 Password validation result:", isPasswordValid);
-    
+
     if (!isPasswordValid) {
       console.log("❌ Password incorrect for user:", email);
       return res.status(400).json({

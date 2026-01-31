@@ -1,5 +1,6 @@
 // server.js
-require('dotenv').config();
+require("dotenv").config();
+
 
 
 const express = require('express');
@@ -15,22 +16,32 @@ const connectDB = require('./config/database');
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes'); // <-- NEW
+const orderRoutes = require("./routes/orderRoutes");
+
+const customerRoutes = require("./routes/customerRoutes");
+const vendorRoutes = require("./routes/vendorRoutes");
+
+
+
 
 // Initialize express app
 const app = express();
 
 // Connect to database
 connectDB();
-
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/uploads", express.static("uploads"));
+app.use("/api/vendor", vendorRoutes);
+app.use("/api/orders", orderRoutes);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes); // <-- NEW
-
+app.use("/api/customer", customerRoutes);
+app.use("/api/orders", orderRoutes);
 // Test route
 app.get('/api/health', (req, res) => {
   res.json({
@@ -57,6 +68,15 @@ app.use((error, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? error.message : undefined
   });
 });
+const fs = require("fs");
+const path = require("path");
+
+// Ensure uploads folder exists
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+  console.log("📁 'uploads' folder created automatically.");
+}
 
 // Start server
 const PORT = process.env.PORT || 5000;

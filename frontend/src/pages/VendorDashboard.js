@@ -1,89 +1,170 @@
 // src/pages/VendorDashboard.js
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './VendorDashboard.css';
+import axios from "axios";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import "./VendorDashboard.css";
+import { toast } from "react-toastify";
 
-const VendorDashboard = ({ user, onLogout, addProduct }) => {
+
+const VendorDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const vendorUser = user || JSON.parse(localStorage.getItem('user')) || { name: 'Vendor', shopName: 'My Shop' };
 
-  const [activeTab, setActiveTab] = useState('home');
+  const [vendorUser, setVendorUser] = useState(
+    user ||
+    JSON.parse(localStorage.getItem("user")) || {
+      name: "",
+      shopName: "",
+      email: "",
+      phone: "",
+      address: "",
+      businessType: "",
+      gstNumber: ""
+    }
+  );
+
+  const [activeTab, setActiveTab] = useState("home");
   const [products, setProducts] = useState([]);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false); // NEW: Toggle state
+
   const [newProduct, setNewProduct] = useState({
-    name: '',
-    price: '',
-    category: '',
-    stock: '',
+    name: "",
+    price: "",
+    category: "", // Default
+    gender: "",   // Default
+    brand: "",   // Default
+    sizes: "",       // Comma separated
+    colors: "",      // Comma separated
+    description: "",
+    stock: "",
     image: null,
   });
-  const [analytics, setAnalytics] = useState([]);
 
-  // Load products and analytics once on mount
+  // ---- Fetch products from backend ----
   useEffect(() => {
-    const savedProducts = JSON.parse(localStorage.getItem('vendorProducts')) || [];
-    setProducts(savedProducts);
-
-    const savedAnalytics = JSON.parse(localStorage.getItem('vendorAnalytics'));
-    if (savedAnalytics) {
-      setAnalytics(savedAnalytics);
-    } else {
-      // Initialize analytics for all products
-      const analyticsData = savedProducts.map(p => ({
-        id: p.id,
-        name: p.name,
-        stock: p.stock,
-        orders: 0, // start with 0 orders
-      }));
-      setAnalytics(analyticsData);
-      localStorage.setItem('vendorAnalytics', JSON.stringify(analyticsData));
-    }
+    axios
+      .get("http://localhost:5000/api/products")
+      .then((res) => setProducts(res.data))
+      .catch((err) => console.log(err));
   }, []);
 
+  useEffect(() => {
+    if (!vendorUser?.email) return;
+
+    axios
+      .get(`http://localhost:5000/api/vendor/${vendorUser.email}`)
+      .then(res => {
+        if (res.data) setVendorUser(res.data);
+      })
+      .catch(err => console.log("Failed to load vendor profile"));
+  }, [vendorUser?.email]);
+
+  const [analyticsData, setAnalyticsData] = useState({});
+
+  useEffect(() => {
+    if (activeTab === "analytics" && vendorUser?.email) {
+      axios.get(`http://localhost:5000/api/vendor/analytics/${vendorUser.email}`)
+        .then(res => setAnalyticsData(res.data))
+        .catch(err => console.error("Analytics Error:", err));
+    }
+  }, [activeTab, vendorUser]);
+
+  // ---- Logout ----
   const handleLogout = () => {
     onLogout();
-    navigate('/');
+    navigate("/");
   };
 
+  // ---- Detect form updates ----
   const handleProductChange = (e) => {
     const { name, value, files } = e.target;
+
     if (files) {
-      setNewProduct({ ...newProduct, image: URL.createObjectURL(files[0]) });
+      setNewProduct({ ...newProduct, [name]: files[0] });
     } else {
       setNewProduct({ ...newProduct, [name]: value });
     }
   };
 
-  const handleAddProduct = () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.category) {
-      alert('Please fill in all required fields.');
+  // ---- Add Product ----
+  const handleAddProduct = async () => {
+    // Validation
+    if (!newProduct.name || !newProduct.price || !newProduct.category || !newProduct.gender || !newProduct.brand || !newProduct.stock) {
+      alert("❌ Please fill in all required fields (Category, Gender, Brand, etc.)");
       return;
     }
-    const newProd = { ...newProduct, id: Date.now() };
-    const updatedProducts = [...products, newProd];
-    setProducts(updatedProducts);
-    localStorage.setItem('vendorProducts', JSON.stringify(updatedProducts));
 
-    // Update analytics
-    const newAnalytics = [...analytics, { id: newProd.id, name: newProd.name, stock: newProd.stock, orders: 0 }];
-    setAnalytics(newAnalytics);
-    localStorage.setItem('vendorAnalytics', JSON.stringify(newAnalytics));
+    const formData = new FormData();
+    formData.append("name", newProduct.name);
+    formData.append("price", newProduct.price);
+    formData.append("category", newProduct.category);
+    formData.append("gender", newProduct.gender);
+    formData.append("brand", newProduct.brand);
+    formData.append("sizes", newProduct.sizes);
+    formData.append("colors", newProduct.colors);
+    formData.append("description", newProduct.description);
+    formData.append("stock", newProduct.stock);
+    formData.append("vendorId", vendorUser.email || vendorUser.name);
 
-    if (addProduct) addProduct(newProd);
+    if (newProduct.image) {
+      formData.append("image", newProduct.image);
+    }
+    if (newProduct.model3D) {
+      formData.append("model3D", newProduct.model3D);
+    }
 
-    setNewProduct({ name: '', price: '', category: '', stock: '', image: null });
-    alert('Product added successfully!');
+    try {
+      const res = await axios.post(
+        "http://localhost:5000/api/products",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setProducts([...products, res.data]);
+      setNewProduct({ name: "", price: "", category: "", stock: "", image: null, model3D: null });
+      alert("🎉 Product uploaded successfully!");
+    } catch (err) {
+      console.log(err.response?.data || err);
+      alert("❌ Upload failed.");
+    }
   };
 
-  const handleRemoveProduct = (id) => {
-    const filteredProducts = products.filter(p => p.id !== id);
-    setProducts(filteredProducts);
-    localStorage.setItem('vendorProducts', JSON.stringify(filteredProducts));
+  // ---- Delete Product ----
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this product?")) return;
 
-    const filteredAnalytics = analytics.filter(a => a.id !== id);
-    setAnalytics(filteredAnalytics);
-    localStorage.setItem('vendorAnalytics', JSON.stringify(filteredAnalytics));
+    try {
+      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      setProducts(products.filter((p) => p._id !== id));
+      alert("🗑️ Product deleted successfully!");
+    } catch (err) {
+      console.log(err);
+      alert("❌ Delete failed");
+    }
+  };
 
-    alert('Product removed!');
+  // ---- Save Edited Product ----
+  const handleSaveEdit = async () => {
+    try {
+      const res = await axios.put(
+        `http://localhost:5000/api/products/${editingProduct._id}`,
+        editingProduct
+      );
+
+      setProducts(
+        products.map((p) => (p._id === editingProduct._id ? res.data : p))
+      );
+
+      setEditingProduct(null);
+      alert("✏️ Product updated successfully!");
+    } catch (err) {
+      console.log(err);
+      alert("❌ Update failed");
+    }
   };
 
   return (
@@ -91,110 +172,316 @@ const VendorDashboard = ({ user, onLogout, addProduct }) => {
       {/* Sidebar */}
       <aside className="vendor-sidebar">
         <h2>{vendorUser.shopName}</h2>
-        {['home', 'profile', 'products', 'analytics'].map(tab => (
+
+        {["home", "profile", "products", "analytics"].map((tab) => (
           <div
             key={tab}
-            className={`sidebar-tab ${activeTab === tab ? 'active' : ''}`}
+            className={`sidebar-tab ${activeTab === tab ? "active" : ""}`}
             onClick={() => setActiveTab(tab)}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>
         ))}
+
         <div className="logout-bottom">
-          <button onClick={handleLogout} className="logout-btn">Logout</button>
+          <button onClick={handleLogout} className="logout-btn">
+            Logout
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="vendor-main">
-        {/* Home / Catalog */}
-        {activeTab === 'home' && (
+        {/* ---- HOME ---- */}
+        {activeTab === "home" && (
           <div className="home-section">
             <h2>Catalog</h2>
             <div className="product-grid">
               {products.length === 0 ? (
                 <p>No products yet.</p>
               ) : (
-                products.map(p => (
-                  <div key={p.id} className="product-card">
-                    {p.image && <img className="product-image-small" src={p.image} alt={p.name} />}
+                products.map((p) => (
+                  <div key={p._id} className="product-card">
+
+                    {p.image && (
+                      <img
+                        className="product-image-small"
+                        src={`http://localhost:5000${p.image}`}
+                        alt={p.name}
+                      />
+                    )}
+
                     <h4>{p.name}</h4>
                     <p>₹{p.price}</p>
                     <p>Category: {p.category}</p>
                     <p>Stock: {p.stock}</p>
+
+                    <button onClick={() => setEditingProduct(p)} className="edit-btn">
+                      Edit
+                    </button>
+                    <button
+                      className="remove-btn-rect"
+                      onClick={() => handleDelete(p._id)}
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))
               )}
             </div>
           </div>
         )}
-
-        {/* Profile */}
-        {activeTab === 'profile' && (
+        {activeTab === "profile" && (
           <div className="profile-section">
-            <h2>Profile / Shop Details</h2>
-            <input type="text" placeholder="Vendor Name" value={vendorUser.name} onChange={(e) => vendorUser.name = e.target.value} />
-            <input type="text" placeholder="Shop Name" value={vendorUser.shopName} onChange={(e) => vendorUser.shopName = e.target.value} />
-            <input type="email" placeholder="Email" value={vendorUser.email || ''} />
-            <input type="text" placeholder="Phone" value={vendorUser.phone || ''} />
-            <textarea placeholder="Address" value={vendorUser.address || ''}></textarea>
-            <button className="primary-btn">Update Profile</button>
+            <h2>🏪 Vendor Profile</h2>
+
+            {!isEditingProfile ? (
+              // ---- VIEW MODE ----
+              <div className="profile-view-card">
+                <div className="profile-row">
+                  <strong>Vendor Name:</strong> <span>{vendorUser.name || "N/A"}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>Shop Name:</strong> <span>{vendorUser.shopName || "N/A"}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>Email:</strong> <span>{vendorUser.email}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>Phone:</strong> <span>{vendorUser.phone || "N/A"}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>Business Type:</strong> <span>{vendorUser.businessType || "N/A"}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>GST Number:</strong> <span>{vendorUser.gstNumber || "N/A"}</span>
+                </div>
+                <div className="profile-row">
+                  <strong>Address:</strong> <span>{vendorUser.address || "N/A"}</span>
+                </div>
+
+                <button className="primary-btn" onClick={() => setIsEditingProfile(true)} style={{ marginTop: "20px" }}>
+                  Edit Profile
+                </button>
+              </div>
+            ) : (
+              // ---- EDIT MODE ----
+              <div className="profile-edit-form">
+                <div className="form-group">
+                  <label>Vendor Name</label>
+                  <input
+                    type="text"
+                    placeholder="Vendor Name"
+                    value={vendorUser.name || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Shop Name</label>
+                  <input
+                    type="text"
+                    placeholder="Shop Name"
+                    value={vendorUser.shopName || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, shopName: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Email (Cannot be changed)</label>
+                  <input type="email" value={vendorUser.email || ""} disabled className="disabled-input" />
+                </div>
+
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input
+                    type="text"
+                    placeholder="Phone Number"
+                    value={vendorUser.phone || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Business Type</label>
+                  <input
+                    type="text"
+                    placeholder="Boutique / Designer / Retailer"
+                    value={vendorUser.businessType || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, businessType: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>GST Number</label>
+                  <input
+                    type="text"
+                    placeholder="GST Number"
+                    value={vendorUser.gstNumber || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, gstNumber: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Shop Address</label>
+                  <textarea
+                    placeholder="Shop Address"
+                    value={vendorUser.address || ""}
+                    onChange={(e) => setVendorUser({ ...vendorUser, address: e.target.value })}
+                  />
+                </div>
+
+                <div className="button-group" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                  <button
+                    className="save-profile-btn"
+                    onClick={async () => {
+                      try {
+                        const res = await axios.put(
+                          `http://localhost:5000/api/vendor/${vendorUser.email}`,
+                          vendorUser
+                        );
+                        toast.success("✅ Profile saved successfully");
+                        localStorage.setItem("user", JSON.stringify(res.data));
+                        setIsEditingProfile(false); // Switch back to view mode
+                      } catch (err) {
+                        toast.error("❌ Failed to save profile");
+                      }
+                    }}
+                  >
+                    Save Changes
+                  </button>
+
+                  <button
+                    className="cancel-btn"
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      // Optional: Reset vendorUser to initial state if needed, but for now just close
+                    }}
+                    style={{ padding: "10px 20px", background: "#f44336", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Products */}
-        {activeTab === 'products' && (
+        {/* ---- PRODUCT ADD PAGE ---- */}
+        {/* ---- PRODUCT ADD PAGE ---- */}
+        {activeTab === "products" && (
+          // ... existing products code ...
           <div className="products-section">
-            <h2>Manage Products</h2>
+            <h2>Add New Product</h2>
             <div className="add-product-form">
               <input type="text" name="name" placeholder="Product Name" value={newProduct.name} onChange={handleProductChange} />
-              <input type="number" name="price" placeholder="Price" value={newProduct.price} onChange={handleProductChange} />
-              <input type="text" name="category" placeholder="Category" value={newProduct.category} onChange={handleProductChange} />
-              <input type="number" name="stock" placeholder="Stock Quantity" value={newProduct.stock} onChange={handleProductChange} />
-              <input type="file" name="image" onChange={handleProductChange} />
-              <button className="primary-btn" onClick={handleAddProduct}>Add Product</button>
-            </div>
 
-            <h3>Existing Products</h3>
-            <div className="product-grid">
-              {products.length === 0 ? <p>No products yet.</p> : products.map(p => (
-                <div key={p.id} className="product-card">
-                  {p.image && <img className="product-image-small" src={p.image} alt={p.name} />}
-                  <h4>{p.name}</h4>
-                  <p>₹{p.price}</p>
-                  <p>Stock: {p.stock}</p>
-                  <p>Category: {p.category}</p>
-                  <button className="remove-btn-rect" onClick={() => handleRemoveProduct(p.id)}>Remove</button>
-                </div>
-              ))}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select name="category" value={newProduct.category} onChange={handleProductChange} style={{ flex: 1, padding: '10px', marginBottom: '10px' }}>
+                  <option value="" disabled>Select Category</option>
+                  <option value="Topwear">Topwear</option>
+                  <option value="Bottomwear">Bottomwear</option>
+                  <option value="Footwear">Footwear</option>
+                  <option value="Accessories">Accessories</option>
+                  <option value="Innerwear">Innerwear</option>
+                </select>
+
+                <select name="gender" value={newProduct.gender} onChange={handleProductChange} style={{ flex: 1, padding: '10px', marginBottom: '10px' }}>
+                  <option value="" disabled>Select Gender</option>
+                  <option value="Men">Men</option>
+                  <option value="Women">Women</option>
+                  <option value="Kids">Kids</option>
+                  <option value="Unisex">Unisex</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="text" name="brand" placeholder="Brand Name" value={newProduct.brand} onChange={handleProductChange} style={{ flex: 1, padding: '10px', marginBottom: '10px' }} />
+                <input type="number" name="price" placeholder="Price (₹)" value={newProduct.price} onChange={handleProductChange} style={{ flex: 1 }} />
+              </div>
+
+              <textarea name="description" placeholder="Product Description..." value={newProduct.description} onChange={handleProductChange} style={{ width: '100%', height: '80px', padding: '10px', marginBottom: '10px' }} />
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="text" name="sizes" placeholder="Sizes (S, M, L)" value={newProduct.sizes} onChange={handleProductChange} style={{ flex: 1 }} />
+                <input type="text" name="colors" placeholder="Colors (Red, Blue)" value={newProduct.colors} onChange={handleProductChange} style={{ flex: 1 }} />
+              </div>
+
+              <input type="number" name="stock" placeholder="Stock Quantity" value={newProduct.stock} onChange={handleProductChange} />
+
+              <label>Product Image</label>
+              <input type="file" name="image" accept="image/*" onChange={handleProductChange} />
+
+              <label>3D Model (Optional)</label>
+              <input type="file" name="model3D" accept=".glb,.gltf" onChange={handleProductChange} />
+
+              <button className="primary-btn" onClick={handleAddProduct}>Add Product</button>
             </div>
           </div>
         )}
 
-        {/* Analytics */}
-        {activeTab === 'analytics' && (
-          <div>
-            <h2>Analytics</h2>
-            {analytics.length === 0 ? <p>No products yet.</p> :
-              <table className="analytics-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Stock</th>
-                    <th>Orders</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analytics.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.name}</td>
-                      <td>{a.stock}</td>
-                      <td>{a.orders}</td>
+        {/* ---- ANALYTICS ---- */}
+        {activeTab === "analytics" && (
+          <div className="analytics-section">
+            <h2>📊 Shop Analytics</h2>
+
+            {/* Metrics Grid */}
+            <div className="analytics-grid">
+              <div className="analytics-card">
+                <h3>Total Revenue</h3>
+                <p className="analytics-value">₹{analyticsData.totalRevenue?.toLocaleString() || 0}</p>
+              </div>
+              <div className="analytics-card">
+                <h3>Orders</h3>
+                <p className="analytics-value">{analyticsData.totalOrders || 0}</p>
+              </div>
+              <div className="analytics-card">
+                <h3>Items Sold</h3>
+                <p className="analytics-value">{analyticsData.productsSold || 0}</p>
+              </div>
+            </div>
+
+            {/* Top Products Table */}
+            <div className="analytics-table-container">
+              <h3>🏆 Top Selling Products</h3>
+              {analyticsData.topProducts?.length > 0 ? (
+                <table className="analytics-table">
+                  <thead>
+                    <tr>
+                      <th>Product Name</th>
+                      <th>Units Sold</th>
+                      <th>Revenue</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            }
+                  </thead>
+                  <tbody>
+                    {analyticsData.topProducts.map((p, idx) => (
+                      <tr key={idx}>
+                        <td>{p.name}</td>
+                        <td>{p.quantity}</td>
+                        <td>₹{p.revenue.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>No sales data yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ---- EDIT POPUP ---- */}
+        {editingProduct && (
+          <div className="modal">
+            <div className="modal-content">
+              <h3>Edit Product</h3>
+              <input value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} />
+              <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })} />
+              <input value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })} />
+              <input type="number" value={editingProduct.stock} onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })} />
+              <button onClick={handleSaveEdit}>Save</button>
+              <button onClick={() => setEditingProduct(null)}>Cancel</button>
+            </div>
           </div>
         )}
       </main>

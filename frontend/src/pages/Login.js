@@ -26,14 +26,14 @@ const Login = ({ setUser }) => {
           email: formData.email,
           role: "admin",
         };
-        
+
         localStorage.setItem("user", JSON.stringify(adminUser));
         localStorage.setItem("token", "admin-token");
-        
+
         setUser(adminUser);
         setSuccess("Admin login successful!");
         setLoading(false);
-        
+
         navigate("/admin-dashboard");
         return;
       }
@@ -43,8 +43,8 @@ const Login = ({ setUser }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
+          email: formData.email.trim(),
+          password: formData.password.trim(),
         }),
       });
 

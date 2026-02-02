@@ -21,6 +21,15 @@ router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D
     const imageFile = req.files['image'] ? req.files['image'][0] : null;
     const model3DFile = req.files['model3D'] ? req.files['model3D'][0] : null;
 
+    let sizeChart = {};
+    if (req.body.sizeChart) {
+      try {
+        sizeChart = JSON.parse(req.body.sizeChart);
+      } catch (e) {
+        console.error("Error parsing sizeChart:", e);
+      }
+    }
+
     const productData = {
       name: req.body.name,
       price: req.body.price,
@@ -34,6 +43,7 @@ router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D
       image: imageFile ? `/uploads/${imageFile.filename}` : null,
       model3D: model3DFile ? `/uploads/${model3DFile.filename}` : null,
       vendorId: req.body.vendorId,
+      sizeChart: sizeChart
     };
 
     console.log("REQ BODY:", req.body);
@@ -135,6 +145,27 @@ router.put("/:id", async (req, res) => {
       new: true,
     });
     res.json(updatedProduct);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --------------------- ADD REVIEW ---------------------
+router.post("/reviews/:id", async (req, res) => {
+  const { userId, userName, rating, comment } = req.body;
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const review = { userId, userName, rating, comment, createdAt: Date.now() };
+    product.reviews.push(review);
+
+    // Recalculate average rating
+    const total = product.reviews.reduce((acc, item) => acc + item.rating, 0);
+    product.rating = total / product.reviews.length;
+
+    await product.save();
+    res.status(201).json(product);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,241 +1,222 @@
-/* Login.css */
-.login-container {
+/* Flipkart-style Split Login Page Styles */
+
+body {
+  background-color: #f1f3f6;
+  /* Common e-commerce grey background */
+}
+
+.login-page {
   min-height: 100vh;
   display: flex;
-  justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  justify-content: center;
   padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.login-box {
-  background: white;
-  padding: 40px;
-  border-radius: 15px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+.login-wrapper {
+  display: flex;
   width: 100%;
-  max-width: 400px;
-  text-align: center;
+  max-width: 850px;
+  height: 550px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-/* Logo Section - Similar to Flipkart/Ajio */
-.logo-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 25px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.logo {
-  font-size: 32px;
-  font-weight: bold;
-  color: #333;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* --- LEFT SIDE: Branding (Blue/Pink Section) --- */
+.login-left {
+  width: 40%;
+  background-color: #2874f0;
+  /* Flipkart blue, or use #e91e63 for your pink */
+  padding: 40px 30px;
   color: white;
-  font-weight: bold;
-  font-size: 20px;
-}
-
-.logo-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.login-title {
-  color: #333;
-  margin-bottom: 30px;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.login-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  justify-content: space-between;
+  background-image: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+  /* Your style */
+}
+
+.login-content h2 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.login-content p {
+  font-size: 18px;
+  line-height: 1.5;
+  color: #f0f0f0;
+  margin-bottom: 50px;
+}
+
+.promo-illustration {
+  font-size: 100px;
+  text-align: center;
+  margin-top: auto;
+  opacity: 0.9;
+  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.1));
+}
+
+/* --- RIGHT SIDE: Form Section --- */
+.login-right {
+  width: 60%;
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: white;
+}
+
+.login-form-groups {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+/* Material Design Floating Labels */
+.floating-input-group {
+  position: relative;
   margin-bottom: 25px;
 }
 
-.form-input {
-  padding: 15px;
-  border: 2px solid #e1e1e1;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  outline: none;
+.floating-input {
   width: 100%;
-  box-sizing: border-box;
-}
-
-.form-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-input::placeholder {
-  color: #999;
-}
-
-.submit-btn {
-  padding: 15px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  padding: 10px 0;
+  font-size: 16px;
   border: none;
-  border-radius: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  outline: none;
+  background: transparent;
+  transition: border-color 0.2s;
+}
+
+.floating-input:focus {
+  border-bottom: 2px solid #2874f0;
+}
+
+.floating-label {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  font-size: 16px;
+  color: #878787;
+  pointer-events: none;
+  transition: 0.2s ease all;
+}
+
+.floating-input:focus~.floating-label,
+.floating-input:not(:placeholder-shown)~.floating-label {
+  top: -12px;
+  font-size: 12px;
+  color: #2874f0;
+}
+
+/* Form Helper Text */
+.form-footer-text {
+  font-size: 12px;
+  color: #878787;
+  margin-bottom: 20px;
+}
+
+.form-footer-text a {
+  color: #2874f0;
+  text-decoration: none;
+}
+
+/* Buttons */
+.login-submit-btn {
+  background: #fb641b;
+  /* Flipkart Orange for action button */
+  color: white;
+  height: 48px;
   font-size: 16px;
   font-weight: 600;
+  border: none;
+  border-radius: 2px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 10px;
-  width: 100%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background 0.2s;
 }
 
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 7px 20px rgba(102, 126, 234, 0.4);
+.login-submit-btn:hover {
+  background: #f4511e;
 }
 
-.submit-btn:disabled {
+.login-submit-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
 }
 
-.toggle-btn {
-  background: none;
+.request-otp-btn {
+  background: white;
+  color: #2874f0;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 600;
   border: none;
-  color: #667eea;
+  border-radius: 2px;
   cursor: pointer;
-  font-size: 14px;
-  text-decoration: underline;
-  transition: color 0.3s ease;
-  padding: 10px;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, .2);
+  margin-top: 15px;
 }
 
-.toggle-btn:hover {
-  color: #764ba2;
-}
-
-/* Additional styling for brand identity */
-.brand-tagline {
-  color: #666;
-  font-size: 14px;
-  margin-top: 5px;
-  margin-bottom: 20px;
-}
-
-/* FORGOT PASSWORD STYLES - ADD THESE */
-.forgot-password-btn {
-  background: none;
-  border: none;
-  color: #667eea;
-  cursor: pointer;
-  font-size: 14px;
-  text-decoration: underline;
-  padding: 8px 0;
-  margin: -5px 0 10px 0;
-  text-align: right;
-  width: 100%;
-  display: block;
-}
-
-.forgot-password-btn:hover {
-  color: #764ba2;
-}
-
-.forgot-password-text {
-  color: #666;
+.or-divider {
   text-align: center;
-  margin-bottom: 20px;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.error-message {
-  background: #ffe6e6;
-  color: #d63031;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid #ffcccc;
+  margin: 15px 0;
+  color: #878787;
   font-size: 14px;
 }
 
-.success-message {
-  background: #e6f7e6;
-  color: #2d5016;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid #c8e6c9;
+/* Links */
+.login-links {
+  margin-top: 25px;
+  text-align: center;
+}
+
+.login-links a {
+  color: #2874f0;
+  text-decoration: none;
+  font-weight: 500;
   font-size: 14px;
 }
 
-/* Responsive Design */
-@media (max-width: 480px) {
-  .login-box {
+.error-text {
+  color: #d32f2f;
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.success-text {
+  color: #388e3c;
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .login-wrapper {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .login-left {
+    width: 100%;
+    padding: 30px;
+    min-height: 200px;
+  }
+
+  .login-right {
+    width: 100%;
     padding: 30px 20px;
-    margin: 10px;
   }
-  
-  .logo-text {
-    font-size: 24px;
-  }
-  
-  .logo-icon {
-    width: 35px;
-    height: 35px;
-    font-size: 18px;
-  }
-  
-  .login-title {
-    font-size: 20px;
-    margin-bottom: 25px;
-  }
-  
-  .form-input {
-    padding: 12px;
-    font-size: 14px;
-  }
-  
-  .submit-btn {
-    padding: 12px;
-    font-size: 14px;
-  }
-}
 
-/* Animation for form switching */
-.login-form {
-  animation: fadeIn 0.5s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .promo-illustration {
+    display: none;
   }
 }

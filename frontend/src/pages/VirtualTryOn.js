@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AvatarViewer from '../components/AvatarViewer';
 
 const VirtualTryOn = () => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const VirtualTryOn = () => {
       tryOnPreview: 'https://via.placeholder.com/400x600/FFFFFF/000000?text=👕+Try-On+View'
     },
     {
-      id: '2', 
+      id: '2',
       name: 'Designer Jeans',
       type: 'bottom',
       category: 'clothing',
@@ -32,7 +33,7 @@ const VirtualTryOn = () => {
       id: '3',
       name: 'Running Shoes',
       type: 'shoes',
-      category: 'shoes', 
+      category: 'shoes',
       price: 120.99,
       image: 'https://via.placeholder.com/200x300/0000FF/FFFFFF?text=Running+Shoes',
       tryOnPreview: 'https://via.placeholder.com/400x600/0000FF/FFFFFF?text=👟+Try-On+View'
@@ -122,13 +123,13 @@ const VirtualTryOn = () => {
         {/* Left Sidebar - Product Browser */}
         <div className="tryon-sidebar">
           <div className="sidebar-tabs">
-            <button 
+            <button
               className={`tab-btn ${activeTab === 'browse' ? 'active' : ''}`}
               onClick={() => setActiveTab('browse')}
             >
               👕 Browse Products
             </button>
-            <button 
+            <button
               className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
               onClick={() => setActiveTab('history')}
             >
@@ -146,7 +147,7 @@ const VirtualTryOn = () => {
                 <button className="filter-btn">Shoes</button>
                 <button className="filter-btn">Accessories</button>
               </div>
-              
+
               <div className="tryon-products-grid">
                 {tryOnProducts.map(product => (
                   <div key={product.id} className="tryon-product-card">
@@ -154,7 +155,7 @@ const VirtualTryOn = () => {
                     <div className="product-info">
                       <h4>{product.name}</h4>
                       <p>${product.price}</p>
-                      <button 
+                      <button
                         className="add-to-tryon-btn"
                         onClick={() => addToTryOn(product)}
                       >
@@ -184,7 +185,7 @@ const VirtualTryOn = () => {
                       <p>{outfit.products.length} items</p>
                       <small>{outfit.timestamp}</small>
                     </div>
-                    <button 
+                    <button
                       className="load-outfit-btn"
                       onClick={() => loadOutfit(outfit)}
                     >
@@ -203,21 +204,21 @@ const VirtualTryOn = () => {
             <div className="preview-header">
               <h2>Virtual Fitting Room</h2>
               <div className="preview-actions">
-                <button 
+                <button
                   className="action-btn secondary"
                   onClick={clearOutfit}
                   disabled={selectedProducts.length === 0}
                 >
                   🗑️ Clear
                 </button>
-                <button 
+                <button
                   className="action-btn secondary"
                   onClick={saveOutfit}
                   disabled={selectedProducts.length === 0}
                 >
                   💾 Save Outfit
                 </button>
-                <button 
+                <button
                   className="action-btn primary"
                   onClick={simulateTryOn}
                   disabled={selectedProducts.length === 0 || isLoading}
@@ -238,7 +239,7 @@ const VirtualTryOn = () => {
                     <div key={product.id} className="selected-item">
                       <img src={product.image} alt={product.name} />
                       <span>{product.name}</span>
-                      <button 
+                      <button
                         className="remove-btn"
                         onClick={() => removeFromTryOn(product.id)}
                       >
@@ -259,11 +260,19 @@ const VirtualTryOn = () => {
                   <p>This may take a few seconds</p>
                 </div>
               ) : activeTab === 'preview' ? (
-                <div className="preview-result">
-                  <div className="outfit-preview-large">
-                    <img 
-                      src={selectedProducts[0]?.tryOnPreview || 'https://via.placeholder.com/400x600/667eea/ffffff?text=Virtual+Try-On+View'} 
-                      alt="Virtual Try-On Result" 
+                <div className="preview-result" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+                  <div className="outfit-preview-large" style={{ flex: 1, position: 'relative' }}>
+                    {/* REAL 3D VIEWER */}
+                    <AvatarViewer
+                      modelUrl={
+                        (JSON.parse(localStorage.getItem("userMeasurements"))?.gender === "male")
+                          ? "/models/male_base.glb"
+                          : "/models/female_base.glb"
+                      }
+                      clothingModelUrl="/models/dressM.glb"
+                      measurements={JSON.parse(localStorage.getItem("userMeasurements")) || {
+                        chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female"
+                      }}
                     />
                   </div>
                   <div className="preview-info">

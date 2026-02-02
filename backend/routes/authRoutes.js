@@ -1,8 +1,10 @@
-const express = require('express');
 const {
   signup,
   login,
-  getMe
+  getMe,
+  forgotPassword,
+  verifyResetToken,
+  resetPassword
 } = require('../controllers/authController');
 const {
   validateSignup,
@@ -16,6 +18,11 @@ const router = express.Router();
 // Public routes
 router.post('/signup', validateSignup, handleValidationErrors, signup);
 router.post('/login', validateLogin, handleValidationErrors, login);
+
+// Password Reset Routes
+router.post('/forgot-password', forgotPassword);
+router.get('/verify-reset-token/:token', verifyResetToken);
+router.post('/reset-password', resetPassword);
 
 // Protected routes
 router.get('/me', authMiddleware, getMe);

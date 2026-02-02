@@ -1,7 +1,7 @@
 // src/pages/CustomerDashboard.js
 import axios from "axios";
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./CustomerDashboard.css";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
@@ -9,6 +9,9 @@ import { toast } from "react-toastify";
 import AvatarViewer from "../components/AvatarViewer";
 
 const CustomerDashboard = ({ user, onLogout }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // SAFE default customer object so it's never null
   const [customer, setCustomer] = useState(
     user || {
@@ -22,23 +25,37 @@ const CustomerDashboard = ({ user, onLogout }) => {
       pincode: ""
     }
   );
-  const [measurements, setMeasurements] = useState({
-    height: "",
-    weight: "",
-    chest: "",
-    waist: "",
-    hips: "",
-    shoulders: "",
+  const [measurements, setMeasurements] = useState(() => {
+    const saved = localStorage.getItem("userMeasurements");
+    // Ensure all fields exist
+    const parsed = saved ? JSON.parse(saved) : {};
+    return {
+      height: parsed.height || "",
+      weight: parsed.weight || "",
+      chest: parsed.chest || "",
+      waist: parsed.waist || "",
+      hips: parsed.hips || "",
+      thigh: parsed.thigh || "",
+      shoulders: parsed.shoulders || "",
+      gender: parsed.gender || "", // Added Gender
+    };
   });
 
   const [generatedMeasurements, setGeneratedMeasurements] = useState({ ...measurements });
 
+  // If we have saved data, start in view-only mode
+  const [isMeasurementEditable, setIsMeasurementEditable] = useState(() => {
+    return !localStorage.getItem("userMeasurements");
+  });
+
   const handleGenerateAvatar = () => {
     setGeneratedMeasurements({ ...measurements });
-    toast.info("Updating avatar...");
+    localStorage.setItem("userMeasurements", JSON.stringify(measurements));
+    setIsMeasurementEditable(false);
+    toast.success("Avatar generated & saved!");
   };
 
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || "home");
   const [avatarPhoto, setAvatarPhoto] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState([]);
@@ -56,8 +73,6 @@ const CustomerDashboard = ({ user, onLogout }) => {
   });
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [brands, setBrands] = useState([]); // Dynamic brands
-
-  const navigate = useNavigate();
 
   // Cart & wishlist contexts
   const { addToCart, cart, updateQuantity, removeFromCart, clearCart, getCartTotal } = useCart();
@@ -195,13 +210,16 @@ const CustomerDashboard = ({ user, onLogout }) => {
       <header className="dashboard-header">
         <div className="logo" onClick={() => setActiveTab("home")}>SmartStyle</div>
 
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={searchTerm}
-          className="search-bar"
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="Search for products, brands and more"
+            value={searchTerm}
+            className="search-bar"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <span className="search-icon-inside">🔍</span>
+        </div>
 
         <div className="header-icons">
           <div className={`cart-icon ${cart.items.length ? "bump" : ""}`} onClick={() => setActiveTab("cart")}>
@@ -421,9 +439,12 @@ const CustomerDashboard = ({ user, onLogout }) => {
                           <p style={{ fontSize: "1.1rem", fontWeight: "bold", margin: "5px 0" }}>₹{product.price}</p>
                           <div className="delivery-tag">Free Delivery</div>
 
-                          {/* Rating Badge (Mock) */}
+                          {/* Rating Badge (Real) */}
                           <div className="rating-badge">
-                            4.2 ★ <span className="rating-count">({Math.floor(Math.random() * 500)})</span>
+                            {product.rating ? product.rating.toFixed(1) : "0.0"} ★
+                            <span className="rating-count">
+                              ({product.reviews ? product.reviews.length : 0} reviews)
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -513,89 +534,175 @@ const CustomerDashboard = ({ user, onLogout }) => {
             </div>
           )}
           {activeTab === "avatar" && (
-            <div className="avatar-section" style={{ display: "flex", gap: "20px", height: "80vh", padding: "10px" }}>
+            <div className="avatar-section" style={{ display: "flex", flexDirection: "column", height: "80vh", padding: "10px" }}>
 
-              {/* LEFT: Inputs & Button - Compact Layout */}
-              <div style={{ width: "250px", display: "flex", flexDirection: "column", gap: "8px", justifyContent: "center" }}>
-                <h2 style={{ fontSize: "1.2rem", margin: "0 0 5px 0" }}>Measurements</h2>
-
-                {["height", "weight", "chest", "waist", "hips", "shoulders"].map((m) => {
-                  let options = [];
-                  let label = m.toUpperCase();
-
-                  if (m === "height") {
-                    label += " (CM)";
-                    for (let i = 150; i <= 170; i++) options.push(i);
-                  } else if (m === "weight") {
-                    label += " (KG)";
-                    for (let i = 40; i <= 150; i++) options.push(i);
-                  } else if (m === "chest") {
-                    label += " (IN)";
-                    for (let i = 32; i <= 38; i++) options.push(i);
-                  } else if (m === "waist") {
-                    label += " (IN)";
-                    for (let i = 26; i <= 32; i++) options.push(i);
-                  } else if (m === "hips") {
-                    label += " (IN)";
-                    for (let i = 34; i <= 40; i++) options.push(i);
-                  } else if (m === "shoulders") {
-                    label += " (IN)";
-                    for (let i = 14; i <= 16; i++) options.push(i);
-                  }
-
-                  return (
-                    <div key={m} style={{ display: 'flex', flexDirection: 'column' }}>
-                      <label style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: "#555" }}>{label}</label>
-                      <select
-                        name={m}
-                        value={measurements[m]}
-                        onChange={handleMeasurementChange}
-                        style={{ padding: '6px', fontSize: '13px', borderRadius: "4px", border: "1px solid #ccc" }}
-                      >
-                        <option value="">Select</option>
-                        {options.map(val => (
-                          <option key={val} value={val}>{val}</option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })}
-
-                <button
-                  onClick={handleGenerateAvatar}
-                  style={{
-                    marginTop: "10px",
-                    padding: "10px",
-                    backgroundColor: "#e91e63",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                    fontSize: "14px"
-                  }}
-                >
-                  Generate Avatar
-                </button>
-              </div>
-
-              {/* RIGHT: Avatar Viewer */}
-              <div style={{ flex: 1, backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #eee", overflow: "hidden", position: "relative" }}>
-                <div style={{ width: "100%", height: "100%" }}>
-                  <AvatarViewer
-                    measurements={{
-                      height: Number(measurements.height),
-                      weight: Number(measurements.weight),
-                      chest: Number(measurements.chest),
-                      waist: Number(measurements.waist),
-                      hips: Number(measurements.hips),
-                      shoulders: Number(measurements.shoulders),
-                    }}
-                    clothingModelUrl={selectedClothing}
-                  />
+              {/* GENDER SELECTION (If not set or editable) */}
+              {(!measurements.gender && isMeasurementEditable) ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <h2>Select Your Body Type</h2>
+                  <div style={{ display: "flex", gap: "20px", marginTop: "20px" }}>
+                    <button
+                      onClick={() => setMeasurements({
+                        gender: "female",
+                        chest: "", waist: "", hips: "", thigh: "", shoulders: ""
+                      })}
+                      style={{ padding: "20px 40px", fontSize: "1.2rem", borderRadius: "10px", border: "2px solid #e91e63", background: "white", cursor: "pointer" }}
+                    >
+                      👩 Female
+                    </button>
+                    <button
+                      onClick={() => setMeasurements({
+                        gender: "male",
+                        chest: "", waist: "", hips: "", thigh: "", shoulders: ""
+                      })}
+                      style={{ padding: "20px 40px", fontSize: "1.2rem", borderRadius: "10px", border: "2px solid #2196f3", background: "white", cursor: "pointer" }}
+                    >
+                      👨 Male
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ display: "flex", gap: "20px", height: "100%" }}>
+                  {/* LEFT: Inputs & Button - Compact Layout */}
+                  <div style={{ width: "250px", display: "flex", flexDirection: "column", gap: "8px", justifyContent: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h2 style={{ fontSize: "1.2rem", margin: "0" }}>Measurements</h2>
+                    </div>
 
+                    <div style={{ background: '#f0f0f0', padding: '10px', borderRadius: '5px', marginBottom: '10px', marginTop: '10px' }}>
+                      <p style={{ margin: 0, fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        Body Type: {measurements.gender === "male" ? "👨 Male" : "👩 Female"}
+                      </p>
+                      {isMeasurementEditable && (
+                        <button
+                          onClick={() => setMeasurements({ ...measurements, gender: "" })}
+                          style={{ marginTop: '5px', fontSize: "0.8rem", padding: "5px 10px", cursor: "pointer", background: "#fff", border: "1px solid #ccc", borderRadius: "4px" }}
+                        >
+                          🔄 Change Gender
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ margin: "10px 0", borderTop: "1px solid #ddd", paddingTop: "10px" }}>
+                      <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Upload Face Photo (Selfie)</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            // You can save this file to state or upload it to generate a detailed 3D mesh later
+                            console.log("Uploaded Face Photo:", e.target.files[0]);
+                            alert("Face photo selected! A 3D Face would be generated from this.");
+                          }
+                        }}
+                        style={{ fontSize: "0.8rem" }}
+                      />
+                    </div>
+
+                    {["chest", "waist", "hips", "thigh", "shoulders"].map((m) => {
+                      let options = [];
+                      let label = m.toUpperCase();
+
+                      if (m === "chest") {
+                        label += " (IN)";
+                        for (let i = 28; i <= 48; i++) options.push(i);
+                      } else if (m === "waist") {
+                        label += " (IN)";
+                        for (let i = 28; i <= 48; i++) options.push(i);
+                      } else if (m === "hips") {
+                        label += " (IN)";
+                        const max = measurements.gender === "male" ? 36 : 48;
+                        for (let i = 28; i <= max; i++) options.push(i);
+                      } else if (m === "thigh") {
+                        label += " (IN)";
+                        for (let i = 19; i <= 25; i++) options.push(i);
+                      } else if (m === "shoulders") {
+                        label += " (IN)";
+                        for (let i = 13; i <= 18; i++) options.push(i);
+                      }
+
+                      return (
+                        <div key={m} style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: "#555" }}>{label}</label>
+                          <select
+                            name={m}
+                            value={measurements[m]}
+                            onChange={handleMeasurementChange}
+                            disabled={!isMeasurementEditable}
+                            style={{
+                              padding: '6px',
+                              fontSize: '13px',
+                              borderRadius: "4px",
+                              border: "1px solid #ccc",
+                              backgroundColor: !isMeasurementEditable ? "#f0f0f0" : "#fff",
+                              cursor: !isMeasurementEditable ? "not-allowed" : "pointer"
+                            }}
+                          >
+                            <option value="">Select</option>
+                            {options.map(val => (
+                              <option key={val} value={val}>{val}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+
+                    {isMeasurementEditable ? (
+                      <button
+                        onClick={handleGenerateAvatar}
+                        style={{
+                          marginTop: "10px",
+                          padding: "10px",
+                          backgroundColor: "#e91e63",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "5px",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                          fontSize: "14px"
+                        }}
+                      >
+                        💾 Generate & Save
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setIsMeasurementEditable(true)}
+                        style={{
+                          marginTop: "10px",
+                          padding: "10px",
+                          backgroundColor: "#333",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "5px",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                          fontSize: "14px"
+                        }}
+                      >
+                        🖊️ Edit Measurements
+                      </button>
+                    )}
+                  </div>
+
+                  {/* RIGHT: Avatar Viewer */}
+                  <div style={{ flex: 1, backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #eee", overflow: "hidden", position: "relative" }}>
+                    <div style={{ width: "100%", height: "100%" }}>
+                      <AvatarViewer
+                        measurements={{
+                          gender: measurements.gender,
+                          chest: Number(measurements.chest),
+                          waist: Number(measurements.waist),
+                          hips: Number(measurements.hips),
+                          thigh: Number(measurements.thigh),
+                          shoulders: Number(measurements.shoulders),
+                        }}
+                        modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
+                        clothingModelUrl={selectedClothing}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -614,6 +721,20 @@ const CustomerDashboard = ({ user, onLogout }) => {
                         <span><strong>Date:</strong> {new Date(order.createdAt).toLocaleDateString()}</span>
                         <span><strong>Status:</strong> <span style={{ color: order.status === "Delivered" ? "green" : "orange" }}>{order.status}</span></span>
                         <span><strong>Total:</strong> ₹{order.totalAmount}</span>
+                        <button
+                          onClick={() => navigate(`/order/${order._id}`)}
+                          style={{
+                            padding: "5px 10px",
+                            backgroundColor: "#2196f3",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "0.8rem"
+                          }}
+                        >
+                          Track Order
+                        </button>
                       </div>
                       <div className="order-items">
                         {order.items.map((item, idx) => (

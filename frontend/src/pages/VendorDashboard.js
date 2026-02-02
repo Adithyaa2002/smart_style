@@ -38,6 +38,7 @@ const VendorDashboard = ({ user, onLogout }) => {
     description: "",
     stock: "",
     image: null,
+    sizeChart: {}, // Stores { "S": { chest: 34, ... }, "M": ... }
   });
 
   // ---- Fetch products from backend ----
@@ -111,6 +112,11 @@ const VendorDashboard = ({ user, onLogout }) => {
     }
     if (newProduct.model3D) {
       formData.append("model3D", newProduct.model3D);
+    }
+
+    // Add Size Chart
+    if (newProduct.sizeChart) {
+      formData.append("sizeChart", JSON.stringify(newProduct.sizeChart));
     }
 
     try {
@@ -414,6 +420,44 @@ const VendorDashboard = ({ user, onLogout }) => {
 
               <label>3D Model (Optional)</label>
               <input type="file" name="model3D" accept=".glb,.gltf" onChange={handleProductChange} />
+
+              {/* SIZE CHART INPUT */}
+              {newProduct.sizes && (
+                <div className="size-chart-section" style={{ marginTop: '15px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' }}>
+                  <h4>📏 Size Chart Details (Inches)</h4>
+                  <p style={{ fontSize: '12px', color: '#666' }}>Enter measurements for each size to help customers fit better.</p>
+
+                  {newProduct.sizes.split(',').map(s => s.trim()).filter(s => s).map(size => (
+                    <div key={size} style={{ marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                      <strong style={{ display: 'block', marginBottom: '5px' }}>Size: {size}</strong>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                        {['Chest', 'Waist', 'Hips', 'Length', 'Shoulders', 'Thigh'].map(metric => (
+                          <input
+                            key={metric}
+                            type="text"
+                            placeholder={metric}
+                            value={newProduct.sizeChart?.[size]?.[metric.toLowerCase()] || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewProduct(prev => ({
+                                ...prev,
+                                sizeChart: {
+                                  ...prev.sizeChart,
+                                  [size]: {
+                                    ...prev.sizeChart?.[size],
+                                    [metric.toLowerCase()]: val
+                                  }
+                                }
+                              }));
+                            }}
+                            style={{ fontSize: '12px', padding: '5px' }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <button className="primary-btn" onClick={handleAddProduct}>Add Product</button>
             </div>

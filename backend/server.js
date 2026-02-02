@@ -42,6 +42,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes); // <-- NEW
 app.use("/api/customer", customerRoutes);
 app.use("/api/orders", orderRoutes);
+
+// Root Route (Friendly Message)
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>SmartStyle Backend is Running! 🚀</h1>
+    <p>This is the API server. For the website, please visit: <a href="http://localhost:3000">http://localhost:3000</a></p>
+  `);
+});
+
 // Test route
 app.get('/api/health', (req, res) => {
   res.json({

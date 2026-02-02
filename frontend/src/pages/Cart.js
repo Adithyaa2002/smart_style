@@ -11,9 +11,18 @@ const Cart = () => {
       alert('Your cart is empty!');
       return;
     }
-    alert(`Order placed successfully! Total: $${getCartTotal().toFixed(2)}`);
-    clearCart();
-    navigate('/dashboard');
+
+    const savedUser = localStorage.getItem("user");
+    const customer = savedUser ? JSON.parse(savedUser) : null;
+
+    // Navigate to payment with tax included in total
+    navigate('/payment', {
+      state: {
+        items: cart.items,
+        totalAmount: (getCartTotal() * 1.1).toFixed(2),
+        customer: customer
+      }
+    });
   };
 
   if (cart.items.length === 0) {
@@ -29,7 +38,7 @@ const Cart = () => {
           <div className="empty-cart-icon">🛒</div>
           <h2>Your cart is empty</h2>
           <p>Add some stylish items to get started!</p>
-          <button 
+          <button
             className="shop-now-btn"
             onClick={() => navigate('/products')}
           >
@@ -67,7 +76,7 @@ const Cart = () => {
               </div>
               <div className="item-controls">
                 <div className="quantity-controls">
-                  <button 
+                  <button
                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
                     disabled={item.quantity <= 1}
                   >
@@ -79,14 +88,14 @@ const Cart = () => {
                   </button>
                 </div>
                 <div className="item-price">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ₹{(item.price * item.quantity).toFixed(2)}
                 </div>
                 <button
-  className="remove-btn"
-  onClick={() => removeFromCart(item._id)}
->
-  🗑 Remove
-</button>
+                  className="remove-btn"
+                  onClick={() => removeFromCart(item._id)}
+                >
+                  🗑 Remove
+                </button>
 
 
               </div>
@@ -99,7 +108,7 @@ const Cart = () => {
             <h3>Order Summary</h3>
             <div className="summary-row">
               <span>Subtotal ({cart.items.reduce((acc, item) => acc + item.quantity, 0)} items):</span>
-              <span>${getCartTotal().toFixed(2)}</span>
+              <span>₹{getCartTotal().toFixed(2)}</span>
             </div>
             <div className="summary-row">
               <span>Shipping:</span>
@@ -107,12 +116,12 @@ const Cart = () => {
             </div>
             <div className="summary-row">
               <span>Tax:</span>
-              <span>${(getCartTotal() * 0.1).toFixed(2)}</span>
+              <span>₹{(getCartTotal() * 0.1).toFixed(2)}</span>
             </div>
             <div className="summary-divider"></div>
             <div className="summary-row total">
               <span>Total:</span>
-              <span>${(getCartTotal() * 1.1).toFixed(2)}</span>
+              <span>₹{(getCartTotal() * 1.1).toFixed(2)}</span>
             </div>
             <button className="checkout-btn" onClick={handleCheckout}>
               🛍️ Proceed to Checkout
@@ -133,7 +142,7 @@ const Cart = () => {
               <span>🚚</span>
               <div>
                 <strong>Free Shipping</strong>
-                <small>On orders over $50</small>
+                <small>On orders over ₹499</small>
               </div>
             </div>
             <div className="feature-item">

@@ -19,10 +19,44 @@ const ProductDetails = () => {
     const [loading, setLoading] = useState(!location.state);
     const [showTryOn, setShowTryOn] = useState(false);
     const [overrideModel, setOverrideModel] = useState(null);
+    const [isDemoMode, setIsDemoMode] = useState(false);
     const [relatedProducts, setRelatedProducts] = useState([]); // New State
 
-    // Mock measurements for now (In real app, fetch from user profile)
-    const measurements = { chest: 90, waist: 70, hips: 95 };
+    // --- Review State & Handler ---
+    const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
+
+    const handleSubmitReview = async () => {
+        const userUser = localStorage.getItem("user");
+        if (!userUser) return toast.error("Please login to review");
+        const parsedUser = JSON.parse(userUser);
+
+        if (!newReview.comment.trim()) return toast.warn("Please write a comment");
+
+        try {
+            const res = await axios.post(`http://localhost:5000/api/products/reviews/${product._id}`, {
+                userId: parsedUser.email,
+                userName: parsedUser.name,
+                rating: Number(newReview.rating),
+                comment: newReview.comment
+            });
+            setProduct(res.data);
+            setNewReview({ rating: 5, comment: "" });
+            toast.success("Review Submitted!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to submit review");
+        }
+    };
+
+    // Load measurements from local storage or fallback to defaults
+    const [measurements, setMeasurements] = useState(() => {
+        const saved = localStorage.getItem("userMeasurements");
+        // Ensure values are numbers for safe arithmetic
+        if (saved) {
+            return JSON.parse(saved);
+        }
+        return { chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female" };
+    });
 
     useEffect(() => {
         if (!product) {
@@ -66,17 +100,20 @@ const ProductDetails = () => {
                         <div className="tryon-container">
                             <AvatarViewer
                                 measurements={{
+                                    height: Number(measurements.height),
+                                    weight: Number(measurements.weight),
                                     chest: Number(measurements.chest),
                                     waist: Number(measurements.waist),
                                     hips: Number(measurements.hips),
+                                    thigh: Number(measurements.thigh),
+                                    shoulders: Number(measurements.shoulders),
                                 }}
-                                clothingModelUrl={
-                                    overrideModel ||
-                                    (product.model3D ? `http://localhost:5000${product.model3D}` : null)
-                                }
+                                clothingModelUrl={null}
+                                modelUrl="/models/dressM.glb"
+                                key={showTryOn ? "active" : "inactive"}
                             />
                             <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
-                        </div>
+                        </div >
                     ) : (
                         <img
                             src={product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`}
@@ -84,10 +121,10 @@ const ProductDetails = () => {
                             className="main-product-img"
                         />
                     )}
-                </div>
+                </div >
 
                 {/* Right: Details */}
-                <div className="product-info">
+                < div className="product-info" >
                     <h1>{product.name}</h1>
                     <p className="price">₹{product.price}</p>
 
@@ -136,58 +173,102 @@ const ProductDetails = () => {
                         </button>
                     </div>
 
-                    {/* TRY ON TRIGGER */}
-                    <div className="tryon-section">
-                        <h3>Virtual Experience</h3>
-                        <p>See how this looks on your 3D avatar!</p>
+                    {/* TRY ON TRIGGER - Only if Model Exists */}
+                    {product.model3D && (
+                        <div className="tryon-section">
+                            <h3>Virtual Experience</h3>
+                            <p>See how this looks on your 3D avatar!</p>
 
-                        {/* Demo Button for User's dress1.glb */}
-                        <button
-                            className="tryon-launch-btn"
-                            style={{ backgroundColor: "#ff4081", marginTop: "10px" }}
-                            onClick={() => {
-                                setOverrideModel("/models/dress1.glb");
-                                setShowTryOn(true);
-                            }}
-                        >
-                            👗 Try Demo Dress
-                        </button>
-
-                        {product.model3D && (
                             <button className="tryon-launch-btn" onClick={() => {
+                                setIsDemoMode(false);
                                 setOverrideModel(null);
                                 setShowTryOn(true);
                             }}>
                                 👕 Try This Product
                             </button>
-                        )}
+                        </div>
+                    )}
+                </div >
+            </div >
+
+            {/* RELATED PRODUCTS SECTION */}
+            {
+                relatedProducts.length > 0 && (
+                    <div className="related-products-section">
+                        <h2>You May Also Like</h2>
+                        <div className="related-grid">
+                            {relatedProducts.map((rp) => (
+                                <div key={rp._id} className="related-card" onClick={() => {
+                                    setProduct(rp); // Update current view immediately
+                                    navigate(`/product/${rp._id}`, { state: rp });
+                                    window.scrollTo(0, 0); // Scroll top
+                                }}>
+                                    <img
+                                        src={rp.image?.startsWith("http") ? rp.image : `http://localhost:5000${rp.image}`}
+                                        alt={rp.name}
+                                    />
+                                    <h4>{rp.name}</h4>
+                                    <p>₹{rp.price}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* REVIEWS SECTION */}
+            <div className="reviews-section">
+                <h2>Customer Reviews ({product.reviews?.length || 0})</h2>
+                <div className="average-rating-display">
+                    <span className="stars-large">{"★".repeat(Math.round(product.rating || 0)) + "☆".repeat(5 - Math.round(product.rating || 0))}</span>
+                    <span className="rating-text">{product.rating?.toFixed(1) || 0} / 5</span>
+                </div>
+
+                <div className="reviews-list">
+                    {product.reviews && product.reviews.length > 0 ? (
+                        product.reviews.slice().reverse().map((rev, idx) => (
+                            <div key={idx} className="review-card">
+                                <div className="review-avatar">{rev.userName.charAt(0).toUpperCase()}</div>
+                                <div className="review-content">
+                                    <div className="review-header">
+                                        <strong>{rev.userName}</strong>
+                                        <span className="review-date">{new Date(rev.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="review-stars">
+                                        {"★".repeat(rev.rating) + "☆".repeat(5 - rev.rating)}
+                                    </div>
+                                    <p className="review-text">{rev.comment}</p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="no-reviews">No reviews yet. Be the first to share your thoughts!</p>
+                    )}
+                </div>
+
+                <div className="add-review-form">
+                    <h3>Write a Review</h3>
+                    <div className="review-inputs">
+                        <select
+                            value={newReview.rating}
+                            onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
+                        >
+                            <option value="5">⭐⭐⭐⭐⭐ (Excellent)</option>
+                            <option value="4">⭐⭐⭐⭐ (Good)</option>
+                            <option value="3">⭐⭐⭐ (Average)</option>
+                            <option value="2">⭐⭐ (Poor)</option>
+                            <option value="1">⭐ (Terrible)</option>
+                        </select>
+                        <textarea
+                            placeholder="Share your experience with this product..."
+                            value={newReview.comment}
+                            onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                        />
+                        <button className="submit-review-btn" onClick={handleSubmitReview}>Submit Review</button>
                     </div>
                 </div>
             </div>
-
-            {/* RELATED PRODUCTS SECTION */}
-            {relatedProducts.length > 0 && (
-                <div className="related-products-section">
-                    <h2>You May Also Like</h2>
-                    <div className="related-grid">
-                        {relatedProducts.map((rp) => (
-                            <div key={rp._id} className="related-card" onClick={() => {
-                                setProduct(rp); // Update current view immediately
-                                navigate(`/product/${rp._id}`, { state: rp });
-                                window.scrollTo(0, 0); // Scroll top
-                            }}>
-                                <img
-                                    src={rp.image?.startsWith("http") ? rp.image : `http://localhost:5000${rp.image}`}
-                                    alt={rp.name}
-                                />
-                                <h4>{rp.name}</h4>
-                                <p>₹{rp.price}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
+        </div >
     );
 };
 

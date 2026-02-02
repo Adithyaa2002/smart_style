@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import React, { useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useGLTF, Environment, ContactShadows } from "@react-three/drei";
+import { OrbitControls, useGLTF, Environment, ContactShadows, Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 function clamp01(val) {
@@ -10,9 +10,9 @@ function clamp01(val) {
   return Math.max(0, Math.min(1, num));
 }
 
-function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
-  // FORCE REFRESH: User renamed file to human_base.glb
-  const { scene } = useGLTF("/models/human_base.glb");
+function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUrl }) {
+  // Configurable Base Model
+  const { scene } = useGLTF(baseModelUrl || "/models/human_base.glb");
 
   // Debug: Confirm inputs are arriving
   useEffect(() => {
@@ -53,29 +53,31 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
       return v;
     };
 
-    // TUNED FORMULA:
-    // We shift the base DOWN so that "Standard" measurements still show some volume.
-    const getMorphWeight = (val, standardVal, range = 20) => {
+    // TUNED FORMULA: Explicit Min/Max Ranges
+    const getMorphWeight = (val, min, max) => {
       const v = toInches(val);
       if (v === 0) return 0;
-
-      // "Zero" morph is 6 inches below standard (e.g. 28 for chest)
-      const zeroPoint = standardVal - 6;
-
-      // Allow up to 1.5 for dramatic effect, don't hard map to 0-1
-      let w = (v - zeroPoint) / range;
-      return Math.max(0, Math.min(1.5, w));
+      // Map min -> 0, max -> 1
+      let w = (v - min) / (max - min);
+      // Increased sensitivity (1.5x) and higher cap (2.0)
+      return Math.max(0, Math.min(2.0, w * 1.5));
     };
 
-    const hVal = Number(measurements?.height || 170);
-    const weightVal = Number(measurements?.weight || 60);
+    // Scaling Logic - NEUTRALIZED for Debugging
+    // The previous logic was making the avatar extremely wide ("Fat").
+    // We are resetting this to 1.0 to show the model "As Is".
 
-    const heightScale = hVal > 0 ? hVal / 170 : 1;
-    const weightRatio = weightVal > 0 ? weightVal / 60 : 1;
-    let thicknessScale = 1 + (weightRatio - 1) * 0.6;
-    thicknessScale = Math.max(0.8, Math.min(1.5, thicknessScale));
+    // const heightScale = hVal > 0 ? hVal / 170 : 1; 
+    // const weightRatio = weightVal > 0 ? weightVal / 60 : 1;
+    // let thicknessScale = 1 + (weightRatio - 1) * 0.6;
+    // thicknessScale = Math.max(0.8, Math.min(1.5, thicknessScale));
 
-    const BASE_SCALE = 1.6;
+    const heightScale = 1;
+    const thicknessScale = 1;
+
+    const isMale = baseModelUrl?.includes("male_base") && !baseModelUrl?.includes("female");
+    const BASE_SCALE = isMale ? 3.8 : 3.5; // Male increased to 3.8, Female increased to 3.5
+
     if (scene) {
       scene.scale.set(
         BASE_SCALE * heightScale * thicknessScale,
@@ -83,6 +85,8 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
         BASE_SCALE * heightScale * thicknessScale
       );
     }
+
+    const weightVal = Number(measurements?.weight || 60);
 
     // --- BONE FINDING ---
     // Scan every frame until we have all the bones we need.
@@ -102,56 +106,77 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
             console.log("Found Waist Bone:", c.name);
           }
           // CHEST (Spine1 - Main Ribcage)
-          // We moved from Spine2 to Spine1 because Spine2 is often too high (clavicles)
-          // Spine1 controls the main volume of the chest/bust area.
           if (!b.chest && (n.includes("spine1") || (n.includes("chest") && !n.includes("upper")))) {
             b.chest = c;
             console.log("Found Chest Bone:", c.name);
           }
-          // UPPER CHEST (Spine2) - Needed to stop chest scale propagation
+          // UPPER CHEST (Spine2)
           if (!b.upperChest && (n.includes("spine2") || n.includes("upperchest"))) {
             b.upperChest = c;
             console.log("Found Upper Chest:", c.name);
           }
-          // ARMS (Upper Arm)
+          // ARMS
           if (!b.leftArm && (n.includes("leftarm") || n.includes("leftupperarm"))) {
             b.leftArm = c;
-            console.log("Found Left Arm:", c.name);
           }
           if (!b.rightArm && (n.includes("rightarm") || n.includes("rightupperarm"))) {
             b.rightArm = c;
-            console.log("Found Right Arm:", c.name);
           }
-          // SHOULDERS (Clavicle/Collar)
+          // SHOULDERS
           if (!b.leftShoulder && (n.includes("leftshoulder") || n.includes("l_collar") || n.includes("clavicle_l"))) {
             b.leftShoulder = c;
-            console.log("Found Left Shoulder:", c.name);
           }
           if (!b.rightShoulder && (n.includes("rightshoulder") || n.includes("r_collar") || n.includes("clavicle_r"))) {
             b.rightShoulder = c;
-            console.log("Found Right Shoulder:", c.name);
           }
         }
       });
     }
 
-    const mChest = toInches(currentMeas?.chest) || standardChest;
-    const mWaist = toInches(currentMeas?.waist) || standardWaist;
-    const mHips = toInches(currentMeas?.hips) || standardHips;
-    const mShoulders = toInches(currentMeas?.shoulders) || 14;
+    // ...
 
-    // --- VISUAL BOOOST ---
-    // User wants "obvious" changes. We act like the mesh is "stiffer" than math implies.
-    // Calculate raw ratio, then boost its deviation from 1.0.
-    const boost = (ratio, factor = 1.2) => {
-      if (ratio === 1) return 1;
-      return 1 + (ratio - 1) * factor;
-    };
+    // --- VISUAL BOOST ---
+    // Enable Bone Scaling for Male (since it lacks some morphs)
+    let chestRatio = 1;
+    let waistRatio = 1;
+    let hipsRatio = 1;
 
-    const chestRatio = boost(mChest / standardChest, 1.5); // 50% extra effect
-    const waistRatio = boost(mWaist / standardWaist, 1.2);
-    const hipsRatio = boost(mHips / standardHips, 1.2);
-    const shoulderRatio = boost(mShoulders / 14, 0.6); // Reduced effect (Subtle change)
+    if (isMale) {
+      if (currentMeas?.chest) {
+        // Boosted Chest Sensitivity: 1.5 factor
+        // Increased max range to 50
+        chestRatio = 1 + (Math.max(28, Math.min(50, Number(currentMeas.chest))) - 28) / 22 * 1.5;
+      }
+      if (currentMeas?.waist) {
+        // SUPER NUCLEAR BOOST for Waist: 2.2 factor
+        waistRatio = 1 + (Math.max(28, Math.min(40, Number(currentMeas.waist))) - 28) / 12 * 2.2;
+      }
+      if (currentMeas?.hips) {
+        // Hyper-sensitivity: 0.9
+        hipsRatio = 1 + (Math.max(28, Math.min(45, Number(currentMeas.hips))) - 28) / 17 * 0.9;
+      }
+    }
+
+    // Shoulder Ratio (Range 13-15) - REDUCED SENSITIVITY
+    // 13 -> 0.95, 15 -> 1.05
+    const shoulderRatio = (currentMeas?.shoulders && Number(currentMeas.shoulders) > 0)
+      ? Math.max(0.9, Math.min(1.1, 1 + (Number(currentMeas.shoulders) - 14) * 0.05))
+      : 1;
+
+    // ...
+
+    // 1. INFLATION: DISABLED for dressM.glb
+    // Physically scale clothing larger to sit OUTSIDE the body
+    // We use 1.05 (5% larger) which is necessary for the severe clipping seen in screenshots.
+    /*
+    if (isClothing && !isBodyPart) {
+      if (!child.userData.hasInflated) {
+         child.scale.multiplyScalar(1.05);
+         child.userData.hasInflated = true;
+         console.log("Auto-Inflated Clothing Mesh:", name);
+      }
+    }
+    */
 
     // --- DEBUG LOG ---
     if (state.clock.elapsedTime - lastLog.current > 3) {
@@ -169,17 +194,16 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
 
     // 2. WAIST (Child of Hips)
     if (b.waist) {
-      // Compensate for Hips
-      const localWaist = Math.max(0.5, waistRatio / hipsRatio);
-      b.waist.scale.set(localWaist, 1, localWaist);
+      // Direct Scaling - independent of Hips
+      b.waist.scale.set(waistRatio, 1, waistRatio);
     }
 
     // 3. CHEST (Spine1 - Child of Waist)
     let appliedChestX = 1;
     let appliedChestZ = 1;
     if (b.chest) {
-      // Compensate for Waist
-      const localChest = Math.max(0.5, chestRatio / waistRatio);
+      // REMOVED Compensation: We want the chest to scale ON TOP of the waist.
+      const localChest = chestRatio;
 
       // Z-BOOST: Add 25% more depth to simulate bust volume
       // This makes the ribcage deeper than it is wide
@@ -223,18 +247,19 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
 
 
     // Morph Weights
-    const chestWeight = getMorphWeight(currentMeas?.chest, standardChest, 22);
-    const waistWeight = getMorphWeight(currentMeas?.waist, standardWaist, 20);
-    const hipWeight = getMorphWeight(currentMeas?.hips, standardHips, 22);
-    const shoulderWeight = getMorphWeight(currentMeas?.shoulders, 14, 12);
+    const chestWeight = getMorphWeight(currentMeas?.chest, 28, 50); // Increased Range
+    const waistWeight = getMorphWeight(currentMeas?.waist, 28, 50);
+    const hipWeight = getMorphWeight(currentMeas?.hips, 28, 48);
+    const thighWeight = getMorphWeight(currentMeas?.thigh, 19, 25);
+    const shoulderWeight = getMorphWeight(currentMeas?.shoulders, 13, 18); // Range 13-18
+    const calfWeight = thighWeight * 0.7; // Proxy for calf
 
     scene.traverse((child) => {
       if ((child.isMesh || child.isSkinnedMesh) && child.morphTargetDictionary && child.morphTargetInfluences) {
 
         if (!child.userData.loggedMorphs) {
-          // Log only once per session to avoid spam
-          // console.log(`[AvatarViewer] Found Morphs on ${child.name}`);
           child.userData.loggedMorphs = true;
+          // console.log("Body Morphs:", Object.keys(child.morphTargetDictionary));
         }
 
         const setKey = (name, value) => {
@@ -244,13 +269,18 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
           }
         };
 
-        setKey("measure-bust-circ-incr", chestWeight);
+        // --- APPLIED FROM USER SCREENSHOT ---
+        setKey("measure-bust-circ-incr", chestWeight);      // Chest/Bust
+        setKey("measure-waist-circ-incr", waistWeight);     // Waist
+        setKey("measure-hips-circ-incr", hipWeight);        // Hips
+        setKey("measure-thigh-circ-incr", thighWeight);     // Thigh
+        setKey("measure-calf-circ-incr", calfWeight);       // Calf (New)
+        setKey("measure-knee-circ-incr", thighWeight * 0.5);// Knee (New - smoothed)
+        setKey("measure-shoulder-dist-incr", shoulderWeight);// Shoulders (Uncommented)
+
+        // Legacy/Backup Keys
         setKey("breast-volume-vert-up", chestWeight);
         setKey("BreastSize", chestWeight);
-        setKey("measure-waist-circ-incr", waistWeight);
-        setKey("hip-scale-horiz-incr", hipWeight);
-        setKey("buttocks-volume-incr", hipWeight);
-        setKey("measure-shoulder-dist-incr", shoulderWeight);
 
         if (weightVal > 80) {
           const stomachVal = clamp01((weightVal - 80) / 40);
@@ -281,6 +311,8 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
 
         // 1. INFLATION: Physically scale clothing larger to sit OUTSIDE the body
         // We use 1.05 (5% larger) which is necessary for the severe clipping seen in screenshots.
+        // 1. INFLATION: DISABLED for dressM.glb
+        /*
         if (isClothing && !isBodyPart) {
           if (!child.userData.hasInflated) {
             child.scale.multiplyScalar(1.05);
@@ -288,6 +320,7 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
             console.log("Auto-Inflated Clothing Mesh:", name);
           }
         }
+        */
 
         // 2. POLYGON OFFSET (Rendering Priority)
         if (isClothing && child.material && !isBodyPart) {
@@ -366,54 +399,23 @@ function AvatarModel({ measurements, onSkeletonLoaded, onSceneDebug }) {
 // -----------------------------------------------------
 // Clothing Model Component (Dictionary Mapped Version)
 // -----------------------------------------------------
-// -----------------------------------------------------
-// Clothing Model Component (Dictionary Mapped Version)
-// -----------------------------------------------------
-const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, adjustmentScale = 1, adjustmentY = 0, adjustmentZ = 0 }) => {
+const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, adjustmentScale = 1, adjustmentY = 0, adjustmentZ = 0, isMale = false }) => {
+  console.log("ClothingModel mounting with URL:", url);
   const { scene } = useGLTF(url);
 
-  useFrame(() => {
-    if (!scene) return;
+  // Ref to avoid stale closures in useFrame
+  const measurementsRef = React.useRef(measurements);
+  useEffect(() => {
+    measurementsRef.current = measurements;
+  }, [measurements]);
 
-    const hVal = Number(measurements?.height || 170);
-    const weightVal = Number(measurements?.weight || 60);
-
-    // Scaling Logic
-    let heightScale = 1.0;
-    let thicknessScale = 1.0;
-
-    // 1. HEIGHT SCALING: proper coordinate system match
-    // Regardless of "Fixed Size", the dress must exist in the same vertical coordinate space 
-    // as the Avatar (which is scaled by height). 
-    // Otherwise, the bones will pull the mesh, but the local transform will conflict.
-    heightScale = hVal > 0 ? hVal / 170 : 1;
-
-    // 2. THICKNESS SCALING: Only if NOT fixed size
-    // If Fixed Size (standard dress), we DO NOT scale thickness. 
-    // This ensures tight/loose fit is visually apparent.
-    if (!isFixedSize) {
-      const weightRatio = weightVal > 0 ? weightVal / 60 : 1;
-      let tS = 1 + (weightRatio - 1) * 0.6;
-      thicknessScale = Math.max(0.8, Math.min(1.5, tS));
+  // FIX: Fixed Size Dress - No Dynamic Scaling
+  useEffect(() => {
+    if (scene) {
+      scene.scale.set(3.7, 3.7, 3.7);
+      scene.position.set(0, -0.6, 0);
     }
-
-    // BASE PARAMS
-    const BASE_SCALE = 1.6 * adjustmentScale; // Mult by user adjustment
-    const INFLATION = 1.08; // Increased from 1.05 to reduce clipping
-
-    // Apply Uniform Height Scaling to X/Z to maintain dress proportions,
-    // Multiplied by Thickness Scale (which is 1.0 for Fixed Size)
-    // Multiplied by Inflation
-    scene.scale.set(
-      BASE_SCALE * heightScale * thicknessScale * INFLATION,
-      BASE_SCALE * heightScale,
-      BASE_SCALE * heightScale * thicknessScale * INFLATION
-    );
-
-    // Position Update
-    // We add the adjustmentY to the default -0.6
-    scene.position.set(0, -0.6 + adjustmentY, adjustmentZ);
-  });
+  }, [scene]);
 
   useEffect(() => {
     if (!scene || !avatarSkeleton) return;
@@ -421,19 +423,16 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, 
     scene.traverse((child) => {
       // ... (existing material and morph logic same as before)
       if (child.isMesh) {
+        // FORCE ON TOP
+        child.renderOrder = 100;
         child.material.side = THREE.DoubleSide;
         child.material.depthWrite = true;
         child.material.polygonOffset = true;
-        child.material.polygonOffsetFactor = -4; // Aggressive priority (was -1)
+        child.material.polygonOffsetFactor = -10;
 
-        // --- APPLY SHAPE KEYS (Sync with Avatar) ---
-        // ONLY apply morphs if it's NOT a fixed-size garment.
-        if (!isFixedSize && (child.isMesh || child.isSkinnedMesh) && child.morphTargetDictionary && child.morphTargetInfluences) {
-
-          if (!child.userData.loggedMorphs) {
-            console.log("[Clothing] Morphs:", child.name, Object.keys(child.morphTargetDictionary));
-            child.userData.loggedMorphs = true;
-          }
+        // ENABLE MORPH TARGETS (Sync with Avatar)
+        // "Body morphs -> dress follows"
+        if (child.morphTargetInfluences && child.morphTargetDictionary) {
 
           const toInches = (val) => {
             const v = Number(val);
@@ -442,42 +441,70 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, 
             return v;
           };
 
-          const getWeight = (val, standardVal, range = 20) => {
+          const getWeight = (val, min, max) => {
             const v = toInches(val);
             if (v === 0) return 0;
-            const zeroPoint = standardVal - 6;
-            return clamp01((v - zeroPoint) / range);
+            // Allow extended range for males
+            const limit = isMale ? 5.0 : 1.5;
+            return Math.max(0, Math.min(limit, (v - min) / (max - min)));
           };
 
           const standardChest = 34; const standardWaist = 28; const standardHips = 38;
 
-          const chestW = getWeight(measurements?.chest, standardChest, 22);
-          const waistW = getWeight(measurements?.waist, standardWaist, 20);
-          const hipsW = getWeight(measurements?.hips, standardHips, 22);
-          const shoulderW = getWeight(measurements?.shoulders, 14, 12);
+          // Male bodies needed huge bone scaling (2.2x), so we must boost the cloth morphs to match.
+          const genderMult = isMale ? 2.5 : 1.0;
 
+          const chestW = getWeight(measurements?.chest, 28, 40);
+          const waistW = getWeight(measurements?.waist, 28, 40);
+          const hipsW = getWeight(measurements?.hips, 28, 45);
+          const thighW = getWeight(measurements?.thigh, 19, 23);
+          const shoulderW = getWeight(measurements?.shoulders, 13, 15);
           const weightVal = Number(measurements?.weight || 60);
 
-          const setKey = (name, value) => {
-            if (child.morphTargetDictionary.hasOwnProperty(name)) {
-              child.morphTargetInfluences[child.morphTargetDictionary[name]] = value;
+          // Define Aliases for Morph Targets (Handle potential typos in models)
+          const morphAliases = {
+            "measure-waist-circ-incr": ["measure-waist-circ-incr", "measure-waist-circ-inc", "waist"],
+            "measure-hips-circ-incr": ["measure-hips-circ-incr", "measure-hips-circ-inc", "hips"],
+            "measure-thigh-circ-incr": ["measure-thigh-circ-incr", "measure-thigh-circ-inc", "thigh"],
+            "measure-bust-circ-incr": ["measure-bust-circ-incr", "measure-bust-circ-inc", "chest", "bust"],
+          };
+
+          const setKey = (standardName, value) => {
+            // 1. Try exact match
+            if (child.morphTargetDictionary.hasOwnProperty(standardName)) {
+              child.morphTargetInfluences[child.morphTargetDictionary[standardName]] = value;
+              return;
+            }
+            // 2. Try aliases
+            if (morphAliases[standardName]) {
+              for (let alias of morphAliases[standardName]) {
+                if (child.morphTargetDictionary.hasOwnProperty(alias)) {
+                  child.morphTargetInfluences[child.morphTargetDictionary[alias]] = value;
+                  return;
+                }
+              }
             }
           };
 
-          setKey("measure-bust-circ-incr", chestW);
-          setKey("breast-volume-vert-up", chestW);
-          setKey("BreastSize", chestW);
-          setKey("measure-waist-circ-incr", waistW);
-          setKey("hip-scale-horiz-incr", hipsW);
-          setKey("buttocks-volume-incr", hipsW);
-          setKey("measure-shoulder-dist-incr", shoulderW);
+          // Apply with Aliases
+          setKey("measure-bust-circ-incr", chestW * genderMult);
+          setKey("breast-volume-vert-up", chestW * genderMult);
+          setKey("BreastSize", chestW * genderMult);
+          setKey("measure-waist-circ-incr", waistW * genderMult);
+          setKey("measure-hips-circ-incr", hipsW * genderMult);
+          setKey("measure-thigh-circ-incr", thighW * genderMult);
+          setKey("measure-shoulder-dist-incr", shoulderW); // Shoulders don't need huge boost usually
 
           if (weightVal > 80) {
-            const stomachVal = clamp01((weightVal - 80) / 40);
+            const stomachVal = Math.max(0, Math.min(1, (weightVal - 80) / 40));
             setKey("stomach-pregnant-incr", stomachVal * 0.7);
           }
+        }
 
-          if (child.updateMorphTargets) child.updateMorphTargets();
+        // AUTO-INFLATION
+        if (!child.userData.hasInflated) {
+          child.scale.multiplyScalar(1.05);
+          child.userData.hasInflated = true;
         }
       }
 
@@ -559,6 +586,129 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, 
 
   }, [scene, avatarSkeleton]);
 
+  // --- SYNCED SCALING FOR CLOTHING ---
+  useFrame(() => {
+    if (!scene) return;
+
+    // --- 1. MORPH TARGETS (From Ref) ---
+    const meas = measurementsRef.current;
+
+    // --- 2. BRUTE FORCE SCALE (To match body bulk) ---
+    // If the body is huge (e.g. Waist 40), the cloth needs to be physically larger
+    // even before morphs are applied, to avoid "skin tight" look.
+    if (isMale) {
+      let bulkFactor = 1.0;
+
+      // Calculate deviation from standard male size (Chest 38, Waist 32, Hips 38, Thigh 21)
+      const chestDev = Math.max(0, (meas?.chest || 38) - 38);
+      const waistDev = Math.max(0, (meas?.waist || 32) - 32);
+      const hipsDev = Math.max(0, (meas?.hips || 38) - 38);
+      const thighDev = Math.max(0, (meas?.thigh || 21) - 21);
+
+      // Width/Depth Factor (X/Z) - Aggressive expansion to cover skin
+      let widthFactor = 1.0;
+      widthFactor += (chestDev * 0.02) + (waistDev * 0.02) + (hipsDev * 0.06) + (thighDev * 0.12);
+
+      // Height Factor (Y) - Constrained
+      // Prevents the crotch from dropping too low or the legs getting too long
+      let heightFactor = 1.0 + (widthFactor - 1.0) * 0.3;
+
+      // Clamp
+      widthFactor = Math.min(3.5, widthFactor);
+      heightFactor = Math.min(1.5, heightFactor);
+
+      const baseScale = 3.7; // Match initial scale
+      scene.scale.set(
+        baseScale * widthFactor,
+        baseScale * heightFactor, // Scale height less
+        baseScale * widthFactor
+      );
+    }
+
+    // Helper Utils
+    const toInches = (val) => {
+      const v = Number(val);
+      if (isNaN(v) || v === 0) return 0;
+      if (v > 60) return v / 2.54;
+      return v;
+    };
+
+    const getWeight = (val, min, max) => {
+      const v = toInches(val);
+      if (v === 0) return 0;
+      // Allow extended range for males
+      const limit = isMale ? 5.0 : 1.5;
+      return Math.max(0, Math.min(limit, (v - min) / (max - min)));
+    };
+
+    // Male bodies needed huge bone scaling (2.2x), so we must boost the cloth morphs to match.
+    const genderMult = isMale ? 2.5 : 1.0;
+
+    // Calculate Weights
+    const chestW = getWeight(meas?.chest, 28, 50);
+    const waistW = getWeight(meas?.waist, 28, 50);
+    const hipsW = getWeight(meas?.hips, 28, 48);
+    const thighW = getWeight(meas?.thigh, 19, 25);
+    const shoulderW = getWeight(meas?.shoulders, 13, 18);
+    const weightVal = Number(meas?.weight || 60);
+
+    scene.traverse((child) => {
+      // APPLY MORPHS
+      if (child.morphTargetInfluences && child.morphTargetDictionary) {
+
+        const setKey = (standardName, value) => {
+          // 1. Try exact match
+          if (child.morphTargetDictionary.hasOwnProperty(standardName)) {
+            child.morphTargetInfluences[child.morphTargetDictionary[standardName]] = value;
+            return;
+          }
+          // 2. Try aliases
+          const aliases = {
+            "measure-waist-circ-incr": ["measure-waist-circ-incr", "measure-waist-circ-inc", "waist"],
+            "measure-hips-circ-incr": ["measure-hips-circ-incr", "measure-hips-circ-inc", "hips"],
+            "measure-thigh-circ-incr": ["measure-thigh-circ-incr", "measure-thigh-circ-inc", "thigh"],
+            "measure-bust-circ-incr": ["measure-bust-circ-incr", "measure-bust-circ-inc", "chest", "bust"],
+          }[standardName];
+
+          if (aliases) {
+            for (let alias of aliases) {
+              if (child.morphTargetDictionary.hasOwnProperty(alias)) {
+                child.morphTargetInfluences[child.morphTargetDictionary[alias]] = value;
+                return;
+              }
+            }
+          }
+        };
+
+        setKey("measure-bust-circ-incr", chestW * genderMult);
+        setKey("breast-volume-vert-up", chestW * genderMult);
+        setKey("BreastSize", chestW * genderMult);
+
+        setKey("measure-waist-circ-incr", waistW * genderMult);
+
+        // Confirming Application
+        if (!child.userData.loggedHips) {
+          console.log("Applying Hips Morph (Clothing):", hipsW * genderMult);
+          child.userData.loggedHips = true;
+        }
+
+        setKey("measure-hips-circ-incr", hipsW * genderMult);
+        setKey("measure-thigh-circ-incr", thighW * genderMult);
+
+        // NEW KEYS FROM SCREENSHOT
+        setKey("measure-calf-circ-incr", (thighW * 0.7) * genderMult);
+        setKey("measure-knee-circ-incr", (thighW * 0.5) * genderMult);
+        setKey("measure-shoulder-dist-incr", shoulderW); // Shoulders usually don't need excessive boost
+
+        if (weightVal > 80) {
+          const stomachVal = Math.max(0, Math.min(1, (weightVal - 80) / 40));
+          setKey("stomach-pregnant-incr", stomachVal * 0.7);
+        }
+      }
+    });
+
+  });
+
   return (
     <primitive
       object={scene}
@@ -572,15 +722,22 @@ const CAMERA_POS = [0, 3.0, 11.0]; // Panning UP further (Y=3.0) to push avatar 
 const CONTROLS_TARGET = [0, 3.0, 0]; // Look at space well above head
 const LIGHT_POS = [5, 10, 5];
 
-export default function AvatarViewer({ measurements, clothingModelUrl }) {
+// ✅ Preload both potentially used models
+useGLTF.preload("/models/human_base.glb");
+useGLTF.preload("/models/body.glb");
+
+export default function AvatarViewer({ measurements, clothingModelUrl, modelUrl = "/models/human_base.glb" }) {
   const [avatarSkeleton, setAvatarSkeleton] = React.useState(null);
   const [sceneDump, setSceneDump] = React.useState("Analyzing...");
   const [showDebug, setShowDebug] = React.useState(false);
 
   // ADJUSTMENT STATES
-  const [scaleMult, setScaleMult] = React.useState(1.0);
+  const [scaleMult, setScaleMult] = React.useState(1.25);
   const [offsetY, setOffsetY] = React.useState(0);
   const [offsetZ, setOffsetZ] = React.useState(0);
+
+  // Determine Gender for Layout/Logic
+  const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("male"));
 
   // NEW: Size Selection for Fit Analysis
   const [selectedSize, setSelectedSize] = React.useState("M");
@@ -593,32 +750,7 @@ export default function AvatarViewer({ measurements, clothingModelUrl }) {
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       {/* Helper Toggle */}
-      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-end' }}>
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          style={{ padding: '5px 10px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          {showDebug ? "Hide Debug" : "Fix Alignment"}
-        </button>
 
-        {showDebug && (
-          <div style={{ background: 'rgba(0,0,0,0.8)', padding: '10px', borderRadius: '8px', color: 'white', width: '220px' }}>
-            <div style={{ marginBottom: '10px' }}>
-              <label>Scale: {scaleMult.toFixed(2)}</label>
-              <input type="range" min="0.1" max="100.0" step="0.1" value={scaleMult} onChange={e => setScaleMult(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <label>Height (Y): {offsetY.toFixed(2)}</label>
-              <input type="range" min="-2.0" max="2.0" step="0.05" value={offsetY} onChange={e => setOffsetY(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <label>Depth (Z): {offsetZ.toFixed(2)}</label>
-              <input type="range" min="-1.0" max="1.0" step="0.05" value={offsetZ} onChange={e => setOffsetZ(parseFloat(e.target.value))} style={{ width: '100%' }} />
-            </div>
-            <small>Adjust these if dress is floating or tiny.</small>
-          </div>
-        )}
-      </div>
 
       {showDebug && (
         <div style={{
@@ -637,22 +769,27 @@ export default function AvatarViewer({ measurements, clothingModelUrl }) {
           <ambientLight intensity={0.7} />
           <directionalLight intensity={1.2} position={LIGHT_POS} castShadow />
 
-          <AvatarModel
-            measurements={measurements}
-            onSkeletonLoaded={handleSkeletonLoaded}
-            onSceneDebug={setSceneDump}
-          />
-
-          {clothingModelUrl && (
-            <ClothingModel
-              url={clothingModelUrl}
-              avatarSkeleton={avatarSkeleton}
+          <React.Suspense fallback={<Html center><div style={{ color: "white", background: "black", padding: "10px" }}>Loading 3D Model...</div></Html>}>
+            <AvatarModel
+              baseModelUrl={modelUrl}
               measurements={measurements}
-              adjustmentScale={scaleMult}
-              adjustmentY={offsetY}
-              adjustmentZ={offsetZ}
+              onSkeletonLoaded={handleSkeletonLoaded}
+              onSceneDebug={setSceneDump}
             />
-          )}
+
+            {clothingModelUrl && (
+              <ClothingModel
+                url={clothingModelUrl}
+                avatarSkeleton={avatarSkeleton}
+                measurements={measurements}
+                isFixedSize={false}
+                adjustmentScale={scaleMult}
+                adjustmentY={offsetY}
+                adjustmentZ={offsetZ}
+                isMale={isMale}
+              />
+            )}
+          </React.Suspense>
 
           <OrbitControls
             makeDefault

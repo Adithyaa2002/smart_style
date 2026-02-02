@@ -195,6 +195,7 @@
         flex-direction: column;
     }
 }
+
 .related-products-section {
     margin-top: 60px;
     padding-top: 20px;
@@ -225,7 +226,7 @@
 
 .related-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .related-card img {
@@ -247,3 +248,110 @@
     color: #e91e63;
 }
 
+/* REVIEWS */
+.reviews-section {
+    margin-top: 40px;
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.average-rating-display {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stars-large {
+    font-size: 2rem;
+    color: #ffc107;
+}
+
+.rating-text {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #555;
+}
+
+.reviews-list {
+    margin-bottom: 40px;
+}
+
+.review-card {
+    display: flex;
+    gap: 20px;
+    padding: 20px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.review-avatar {
+    width: 50px;
+    height: 50px;
+    background: #e0e0e0;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    color: #666;
+    font-size: 1.2rem;
+}
+
+.review-content {
+    flex: 1;
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.review-stars {
+    color: #ffc107;
+    margin-bottom: 8px;
+}
+
+.review-text {
+    color: #444;
+    line-height: 1.5;
+}
+
+.add-review-form {
+    background: #f9f9f9;
+    padding: 25px;
+    border-radius: 8px;
+}
+
+.review-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.review-inputs select,
+.review-inputs textarea {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: inherit;
+}
+
+.review-inputs textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.submit-review-btn {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    align-self: flex-start;
+}

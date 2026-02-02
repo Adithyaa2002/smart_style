@@ -4,18 +4,23 @@ import { CartProvider } from "./context/CartContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { WishlistProvider } from "./context/WishlistContext";
+import Footer from "./components/Footer";
 
 
 // Pages
 import Cart from "./pages/Cart";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Profile from "./pages/Profile";
 import Products from "./pages/Products";  // ✅ Only one import
 import VirtualTryOn from "./pages/VirtualTryOn";
 import ProductDetails from "./pages/ProductDetails";
 import Payment from "./pages/Payment";
+import OrderSuccess from "./pages/OrderSuccess";
+import OrderDetails from "./pages/OrderDetails";
 
 
 import AdminDashboard from "./pages/AdminDashboard";
@@ -86,6 +91,9 @@ function App() {
                 }
               />
 
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+
 
               {/* ✅ Customer Routes */}
               <Route
@@ -131,6 +139,17 @@ function App() {
                 element={user ? <Cart /> : <Navigate to="/" />}
               />
 
+              <Route
+                path="/order-success"
+                element={user ? <OrderSuccess /> : <Navigate to="/" />}
+              />
+
+              {/* ✅ Order Details Page */}
+              <Route
+                path="/order/:id"
+                element={user ? <OrderDetails /> : <Navigate to="/" />}
+              />
+
               {/* ✅ Admin Route */}
               <Route
                 path="/admin-dashboard"
@@ -159,6 +178,7 @@ function App() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </div>
+          <Footer />
           <ToastContainer position="top-right" autoClose={2000} theme="dark" />
         </Router>
       </WishlistProvider>

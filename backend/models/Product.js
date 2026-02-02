@@ -13,6 +13,27 @@ const productSchema = new mongoose.Schema({
   description: { type: String },
   image: { type: String },      // URL or base64 string
   model3D: { type: String },    // Path to valid .glb/.gltf file
+  sizeChart: {
+    type: Map,
+    of: {
+      waist: { type: String },
+      thigh: { type: String },
+      hips: { type: String },
+      chest: { type: String },
+      shoulders: { type: String },
+      length: { type: String }
+    },
+    default: {}
+  },
+  reviews: [
+    {
+      userId: { type: String, required: true },
+      userName: { type: String, required: true },
+      rating: { type: Number, required: true, min: 1, max: 5 },
+      comment: { type: String, required: true },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
   vendorId: { type: String },   // optional, store vendor ID
 }, { timestamps: true });
 

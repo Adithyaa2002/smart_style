@@ -77,36 +77,71 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div className="login-container">
-      <h2>Login</h2>
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          name="email"
-          placeholder="Enter Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="password"
-          name="password"
-          placeholder="Enter Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
+    <div className="login-page">
+      <div className="login-wrapper">
+        {/* LEFT SIDE: Promotional / Branding (Flipkart style) */}
+        <div className="login-left">
+          <div className="login-content">
+            <h2>Login</h2>
+            <p>Get access to your Orders, Wishlist and Recommendations</p>
+            <div className="promo-illustration">
+              🛍️
+            </div>
+          </div>
+        </div>
 
-      <p className="signup-link">
-        Don't have an account? <Link to="/signup">Sign up here</Link>
-      </p>
+        {/* RIGHT SIDE: Form */}
+        <div className="login-right">
+          <form onSubmit={handleLogin} className="login-form-groups">
+            <div className="floating-input-group">
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="floating-input"
+                placeholder=" "
+              />
+              <label className="floating-label">Enter Email/Mobile number</label>
+            </div>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {success && <p style={{ color: "green" }}>{success}</p>}
+            <div className="floating-input-group">
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="floating-input"
+                placeholder=" "
+              />
+              <label className="floating-label">Enter Password</label>
+            </div>
+
+            <div className="form-footer-text">
+              By continuing, you agree to SmartStyle's <a href="#">Terms of Use</a> and <a href="#">Privacy Policy</a>.
+            </div>
+
+            <button type="submit" className="login-submit-btn" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
+            </button>
+
+            {/* Removed OTP section per request */}
+
+            <div className="login-links">
+              <Link to="/forgot-password" style={{ textDecoration: 'none', color: '#2874f0' }}>Forgot Password?</Link>
+              <br />
+              <span style={{ color: "#333", fontSize: "0.9rem", marginTop: "10px", display: "block" }}>
+                New to SmartStyle? <Link to="/signup">Create an account</Link>
+              </span>
+            </div>
+
+            {error && <p className="error-text">{error}</p>}
+            {success && <p className="success-text">{success}</p>}
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
 
-const AdminDashboard = ({ user, onLogout }) => {
+const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
@@ -24,9 +24,11 @@ const AdminDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Use the user prop passed from App.js, fallback to localStorage
     if (user && user.role === 'admin') {
       setAdminUser(user);
     } else {
+      // If no user prop, check localStorage
       const savedUser = JSON.parse(localStorage.getItem('user'));
       if (!savedUser || savedUser.role !== 'admin') {
         navigate('/');
@@ -222,74 +224,50 @@ const AdminDashboard = ({ user, onLogout }) => {
   };
 
   const handleLogout = () => {
-    onLogout();
+    onLogout(); // Call parent logout function
     navigate('/');
   };
 
-  const handleSettingChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setStoreSettings(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+  // Mock data for dashboard
+  const dashboardStats = {
+    totalUsers: 1247,
+    totalProducts: 89,
+    totalOrders: 543,
+    revenue: '$45,230',
+    activeTryOns: 234,
+    conversionRate: '12.4%'
   };
 
-  const saveSettings = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(storeSettings)
-      });
-      const result = await response.json();
-      if (result.success) {
-        alert('Global store configurations synchronized successfully!');
-      }
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      alert('Sync failed. Please check backend connection.');
-    }
-  };
+  const recentActivities = [
+    { id: 1, user: 'John Doe', action: 'Purchased Summer Dress', time: '2 mins ago' },
+    { id: 2, user: 'Sarah Smith', action: 'Virtual Try-On Completed', time: '5 mins ago' },
+    { id: 3, user: 'Mike Johnson', action: 'Account Created', time: '10 mins ago' },
+    { id: 4, user: 'Emma Wilson', action: 'Product Review Added', time: '15 mins ago' }
+  ];
 
-  if (!adminUser || loading) {
-    return <div className="loading">Synchronizing Real-time Data...</div>;
+  if (!adminUser) {
+    return <div className="loading">Loading...</div>;
   }
-
-  // Real Data Mapping
-  const totalStats = stats?.totalStats || { totalUsers: 0, totalProducts: 0, totalOrders: 0, totalRevenue: '₹0' };
-
-  const ecomStats = [
-    { label: 'Gross Revenue (GMV)', value: totalStats.totalRevenue, trend: '+0%', icon: '💰' },
-    { label: 'Total Orders', value: totalStats.totalOrders, trend: '+0%', icon: '📦' },
-    { label: 'Active Products', value: totalStats.totalProducts, trend: '+0%', icon: '👕' },
-    { label: 'Total User Pool', value: totalStats.totalUsers, trend: '+0%', icon: '👥' },
-  ];
-
-  const recentOrders = stats?.recentOrders || [];
-  const userAnalytics = stats?.userAnalytics || { new: 0, returning: 0 };
-
-  const inventoryAlerts = [
-    { product: 'Silk Summer Dress', stock: 2, status: 'Critical Low', color: 'red' },
-    { product: 'Mens Denim Jacket', stock: 8, status: 'Low Stock', color: 'orange' },
-  ];
 
   return (
     <div className="admin-dashboard">
+      {/* Header */}
       <header className="admin-header">
         <div className="admin-header-left">
-          <h1>SmartStyle Retail Command</h1>
-          <p>Professional Store Management | Admin: {adminUser.name}</p>
+          <h1>SmartStyle Admin Dashboard</h1>
+          <p>Welcome back, {adminUser.name}</p>
         </div>
         <div className="admin-header-right">
-          <div className="store-status">
-            <span className="pulse"></span> Store Online
-          </div>
-          <button onClick={handleLogout} className="logout-btn">Log Out</button>
+          <span className="admin-role">Administrator</span>
+          <button onClick={handleLogout} className="logout-btn">
+            Logout
+          </button>
         </div>
       </header>
 
       <div className="admin-container">
-        <aside className="admin-sidebar">
+        {/* Sidebar */}
+        <nav className="admin-sidebar">
           <div className="sidebar-menu">
             <button className={`menu-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
               <span>📊</span> Store Overview
@@ -313,100 +291,72 @@ const AdminDashboard = ({ user, onLogout }) => {
               <span>⭐</span> Review Management
             </button>
           </div>
-        </aside>
+        </nav>
 
+        {/* Main Content */}
         <main className="admin-main">
           {activeTab === 'overview' && (
             <div className="overview-tab">
-              <div className="ecom-metric-grid">
-                {ecomStats.map((stat, i) => (
-                  <div key={i} className="metric-card">
-                    <div className="metric-header">
-                      <span className="metric-icon">{stat.icon}</span>
-                      <span className="metric-trend up">{stat.trend}</span>
-                    </div>
-                    <div className="metric-body">
-                      <h3>{stat.value}</h3>
-                      <p>{stat.label}</p>
-                    </div>
+              <h2>Dashboard Overview</h2>
+              
+              {/* Stats Grid */}
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-icon">👥</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.totalUsers}</h3>
+                    <p>Total Users</p>
                   </div>
-                ))}
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">👕</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.totalProducts}</h3>
+                    <p>Products</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">📦</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.totalOrders}</h3>
+                    <p>Total Orders</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">💰</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.revenue}</h3>
+                    <p>Revenue</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">🎯</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.activeTryOns}</h3>
+                    <p>Active Try-Ons</p>
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-icon">📊</div>
+                  <div className="stat-info">
+                    <h3>{dashboardStats.conversionRate}</h3>
+                    <p>Conversion Rate</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="dashboard-content-grid">
-                {/* Orders Table */}
-                <div className="content-card orders-section">
-                  <div className="card-header">
-                    <h3>Recent Transactions (Live)</h3>
-                    <button className="view-all" onClick={() => setActiveTab('orders')}>View All Orders</button>
-                  </div>
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Order ID</th>
-                        <th>Customer</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentOrders.length > 0 ? (
-                        recentOrders.map((order, i) => (
-                          <tr key={i}>
-                            <td><strong>{order.id}</strong></td>
-                            <td>{order.customer}</td>
-                            <td>
-                              <span className={`status-pill ${order.status.toLowerCase()}`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td>{order.amount}</td>
-                            <td>{order.date}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No recent orders found in database</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="sidebar-panels">
-                  {/* User Mix Panel */}
-                  <div className="content-card analytics-panel">
-                    <h3>Customer Mix</h3>
-                    <div className="alert-list">
-                      <div className="alert-item">
-                        <div className="alert-info">
-                          <strong>New Customers (30d)</strong>
-                        </div>
-                        <span className="alert-status">{userAnalytics.new}</span>
+              {/* Recent Activity */}
+              <div className="recent-activity">
+                <h3>Recent Activity</h3>
+                <div className="activity-list">
+                  {recentActivities.map(activity => (
+                    <div key={activity.id} className="activity-item">
+                      <div className="activity-content">
+                        <strong>{activity.user}</strong> {activity.action}
                       </div>
-                      <div className="alert-item">
-                        <div className="alert-info">
-                          <strong>Returning Customers</strong>
-                        </div>
-                        <span className="alert-status">{userAnalytics.returning}</span>
-                      </div>
+                      <span className="activity-time">{activity.time}</span>
                     </div>
-                  </div>
-
-                  {/* Inventory Alerts */}
-                  <div className="content-card inventory-panel">
-                    <h3>Stock Intelligence</h3>
-                    <div className="alert-list">
-                      {inventoryAlerts.map((alert, i) => (
-                        <div key={i} className="alert-item">
-                          <div className="alert-info">
-                            <strong>{alert.product}</strong>
-                            <span>In Stock: {alert.stock}</span>
-                          </div>
-                          <span className="alert-status" style={{ color: alert.color }}>{alert.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -496,163 +446,16 @@ const AdminDashboard = ({ user, onLogout }) => {
           )}
 
           {activeTab === 'products' && (
-            <div className="inventory-tab">
-              <div className="card-header">
-                <h2>Inventory Management</h2>
-                <div className="orders-header-actions">
-                  <input
-                    type="text"
-                    placeholder="Search products..."
-                    value={invSearchTerm}
-                    onChange={(e) => setInvSearchTerm(e.target.value)}
-                    className="admin-search-input"
-                  />
-                  <button className="primary-btn" onClick={() => setActiveTab('overview')}>← Overview</button>
-                </div>
-              </div>
-
-              <div className="content-card">
-                {inventoryLoading ? (
-                  <p>Synchronizing Stock...</p>
-                ) : (
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th>Category</th>
-                        <th>Price</th>
-                        <th>Stock</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventory
-                        .filter(p =>
-                          p.name.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                          p.brand?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                          p.category?.toLowerCase().includes(invSearchTerm.toLowerCase())
-                        )
-                        .length > 0 ? (
-                        inventory
-                          .filter(p =>
-                            p.name.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                            p.brand?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                            p.category?.toLowerCase().includes(invSearchTerm.toLowerCase())
-                          )
-                          .map((product) => (
-                            <tr key={product._id}>
-                              <td>
-                                <div className="table-product-info">
-                                  <img src={product.image} alt="" className="tiny-thumb" />
-                                  <div className="name-brand">
-                                    <strong>{product.name}</strong>
-                                    <span>{product.brand}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>{product.category}</td>
-                              <td>
-                                <div className="inline-edit">
-                                  <span>₹</span>
-                                  <input
-                                    type="number"
-                                    defaultValue={product.price}
-                                    onBlur={(e) => updateProductInline(product._id, 'price', e.target.value)}
-                                    className="inline-input price-input"
-                                  />
-                                </div>
-                              </td>
-                              <td>
-                                <div className="inline-edit">
-                                  <input
-                                    type="number"
-                                    defaultValue={product.stock}
-                                    onBlur={(e) => updateProductInline(product._id, 'stock', e.target.value)}
-                                    className={`inline-input stock-input ${product.stock < 5 ? 'critical' : ''}`}
-                                  />
-                                </div>
-                              </td>
-                              <td>
-                                <button
-                                  className="delete-icon-btn"
-                                  onClick={() => deleteProduct(product._id)}
-                                  title="Delete Product"
-                                >
-                                  🗑️
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                      ) : (
-                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No products found matching "{invSearchTerm}"</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+            <div className="products-tab">
+              <h2>Product Catalog</h2>
+              <p>Product management interface coming soon...</p>
             </div>
           )}
 
-          {activeTab === 'customers' && (
-            <div className="users-tab">
-              <div className="card-header">
-                <h2>Customer Management</h2>
-                <div className="orders-header-actions">
-                  <input
-                    type="text"
-                    placeholder="Search customers..."
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="admin-search-input"
-                  />
-                  <button className="primary-btn" onClick={() => setActiveTab('overview')}>← Overview</button>
-                </div>
-              </div>
-
-              <div className="content-card">
-                {usersLoading ? (
-                  <p>Fetching User Intelligence...</p>
-                ) : (
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Joined Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users
-                        .filter(u =>
-                          u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                          u.email.toLowerCase().includes(userSearchTerm.toLowerCase())
-                        )
-                        .length > 0 ? (
-                        users
-                          .filter(u =>
-                            u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                            u.email.toLowerCase().includes(userSearchTerm.toLowerCase())
-                          )
-                          .map((u) => (
-                            <tr key={u._id}>
-                              <td><strong>{u.name}</strong></td>
-                              <td>{u.email}</td>
-                              <td>
-                                <span className={`role-pill ${u.role}`}>
-                                  {u.role.charAt(0).toUpperCase() + u.role.slice(1)}
-                                </span>
-                              </td>
-                              <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-                            </tr>
-                          ))
-                      ) : (
-                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No customers found matching "{userSearchTerm}"</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+          {activeTab === 'orders' && (
+            <div className="orders-tab">
+              <h2>Order Management</h2>
+              <p>Order management interface coming soon...</p>
             </div>
           )}
 
@@ -827,45 +630,6 @@ const AdminDashboard = ({ user, onLogout }) => {
           )}
         </main>
       </div>
-
-      {/* Order Details Modal */}
-      {selectedOrder && (
-        <div className="admin-modal-overlay" onClick={() => setSelectedOrder(null)}>
-          <div className="admin-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Order Details: #RD-{selectedOrder._id.toString().slice(-6).toUpperCase()}</h3>
-              <button className="close-modal" onClick={() => setSelectedOrder(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="detail-row">
-                <strong>Customer:</strong> {selectedOrder.customerId}
-              </div>
-              <div className="detail-row">
-                <strong>Total Amount:</strong> ₹{selectedOrder.totalAmount?.toLocaleString()}
-              </div>
-              <div className="detail-row">
-                <strong>Status:</strong> {selectedOrder.status || 'Pending'}
-              </div>
-              <div className="detail-row">
-                <strong>Shipping Address:</strong> {selectedOrder.shippingAddress || 'N/A'}
-              </div>
-
-              <h4 style={{ marginTop: '20px', marginBottom: '10px' }}>Items Purchased</h4>
-              <div className="items-list">
-                {selectedOrder.items.map((item, idx) => (
-                  <div key={idx} className="order-item-detail">
-                    <img src={item.image} alt="" className="item-thumb" />
-                    <div className="item-info">
-                      <strong>{item.name}</strong>
-                      <span>₹{item.price?.toLocaleString()} x {item.quantity}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

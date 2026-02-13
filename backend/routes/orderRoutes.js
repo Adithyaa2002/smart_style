@@ -8,10 +8,32 @@ router.post("/", async (req, res) => {
   try {
     const { customerId, items, totalAmount, paymentStatus, shippingAddress } = req.body;
 
-    // 1️⃣ Save order
+    // 1️⃣ Validate Stock & Enrich Items with Vendor ID
+    const enrichedItems = [];
+
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+      if (!product) {
+        return res.status(404).json({ message: `Product not found: ${item.name}` });
+      }
+      if (product.stock < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
+      }
+
+      // Store product temporarily to update stock later
+      item.productRef = product;
+
+      // Add to enriched items
+      enrichedItems.push({
+        ...item,
+        vendorId: product.vendorId // Capture vendor ID
+      });
+    }
+
+    // 2️⃣ Save Order
     const order = new Order({
       customerId,
-      items,
+      items: enrichedItems,
       totalAmount,
       paymentStatus,
       shippingAddress
@@ -19,21 +41,9 @@ router.post("/", async (req, res) => {
 
     await order.save();
 
-    // 2️⃣ Reduce stock for each product
-    for (let item of items) {
-      const product = await Product.findById(item.productId);
-
-      if (!product) {
-        return res.status(404).json({ message: "Product not found" });
-      }
-
-      // Prevent negative stock
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          message: `Insufficient stock for ${product.name}`,
-        });
-      }
-
+    // 3️⃣ Reduce Stock
+    for (const item of items) {
+      const product = item.productRef;
       product.stock -= item.quantity;
       await product.save();
     }
@@ -65,6 +75,33 @@ router.get("/:id", async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
     res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ GET ALL ORDERS (Admin)
+router.get("/", async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ UPDATE ORDER STATUS
+router.patch("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

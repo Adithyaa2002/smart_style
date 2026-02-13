@@ -13,6 +13,12 @@ const Profile = ({ user }) => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -73,6 +79,50 @@ const Profile = ({ user }) => {
 
   const handleSave = (section) => {
     updateProfile(section, profile[section]);
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordMsg({ type: '', text: '' });
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/change-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update password');
+      }
+
+      setPasswordMsg({ type: 'success', text: 'Password updated successfully' });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      setPasswordMsg({ type: 'error', text: error.message });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -247,7 +297,9 @@ const Profile = ({ user }) => {
               <p className="tab-description">
                 Tell us about your fashion preferences for personalized recommendations.
               </p>
-
+              {/* ... (existing content logic remains implicit, we are just replacing the block structure if needed, but here we append) ... */}
+              {/* Actually, the tool replaces the TargetContent. We need to be careful. The user wants to ADD the new tab. */}
+              {/* The previous tool call showed lines 243-350 for stylePreferences. I will match the closing of stylePreferences and append the new tab. */}
               <div className="form-section">
                 <h3>Preferred Styles</h3>
                 <div className="checkbox-grid">
@@ -346,6 +398,130 @@ const Profile = ({ user }) => {
               >
                 {saving ? 'Saving...' : 'Save Preferences'}
               </button>
+            </div>
+          )}
+
+          {/* SHIPPING (Placeholder or Implementation - keeping logic simple for now, sticking to request) */}
+          {activeTab === 'shipping' && (
+            <div className="tab-content">
+              <h2>Shipping Address</h2>
+              <p>Manage your delivery addresses.</p>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Street Address</label>
+                  <input type="text" placeholder="123 Fashion St" />
+                </div>
+                <div className="form-group">
+                  <label>City</label>
+                  <input type="text" placeholder="New York" />
+                </div>
+                <div className="form-group">
+                  <label>State</label>
+                  <input type="text" placeholder="NY" />
+                </div>
+                <div className="form-group">
+                  <label>Zip Code</label>
+                  <input type="text" placeholder="10001" />
+                </div>
+              </div>
+              <button className="save-btn">Save Address</button>
+            </div>
+          )}
+
+          {/* AVATAR (Placeholder) */}
+          {activeTab === 'avatar' && (
+            <div className="tab-content">
+              <h2>Avatar Settings</h2>
+              <p>Customize your 3D avatar visualization.</p>
+              {/* Add avatar specific settings here */}
+            </div>
+          )}
+
+          {/* NOTIFICATIONS (Placeholder) */}
+          {activeTab === 'notifications' && (
+            <div className="tab-content">
+              <h2>Notifications</h2>
+              <p>Manage your email and push notification preferences.</p>
+              {/* Add notification toggles here */}
+            </div>
+          )}
+
+          {/* PRIVACY & SECURITY */}
+          {activeTab === 'privacy' && (
+            <div className="tab-content">
+              <h2>Privacy & Security</h2>
+              <p className="tab-description">
+                Manage your account security and privacy settings.
+              </p>
+
+              <div className="security-section">
+                <h3>Change Password</h3>
+                <form onSubmit={handlePasswordChange} className="password-form">
+                  <div className="form-group">
+                    <label>Current Password</label>
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>New Password</label>
+                    <input
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  {passwordMsg.text && (
+                    <div className={`message ${passwordMsg.type === 'error' ? 'error-text' : 'success-text'}`}>
+                      {passwordMsg.text}
+                    </div>
+                  )}
+
+                  <button type="submit" className="save-btn" disabled={saving}>
+                    {saving ? 'Updating...' : 'Update Password'}
+                  </button>
+                </form>
+              </div>
+
+              <hr className="divider" />
+
+              <div className="security-section">
+                <h3>Two-Factor Authentication</h3>
+                <div className="toggle-setting">
+                  <div className="setting-info">
+                    <h4>Enable 2FA</h4>
+                    <p>Add an extra layer of security to your account</p>
+                  </div>
+                  <label className="switch">
+                    <input type="checkbox" />
+                    <span className="slider round"></span>
+                  </label>
+                </div>
+              </div>
+
+              <hr className="divider" />
+
+              <div className="security-section danger-zone">
+                <h3>Delete Account</h3>
+                <p>Permanently delete your account and all of your content.</p>
+                <button className="delete-btn">Delete Account</button>
+              </div>
             </div>
           )}
         </div>

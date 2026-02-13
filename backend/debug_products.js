@@ -7,15 +7,15 @@ const path = require('path');
 const envPath = path.resolve(__dirname, '.env');
 console.log("Loading .env from:", envPath);
 dotenv.config({ path: envPath });
-console.log("MONGO_URI:", process.env.MONGO_URI ? "Found" : "Not Found");
+console.log("MONGODB_URI:", process.env.MONGODB_URI ? "Found" : "Not Found");
 
 const checkProducts = async () => {
     try {
-        if (!process.env.MONGO_URI) {
-            console.error("MONGO_URI is missing. Please check .env file.");
+        if (!process.env.MONGODB_URI) {
+            console.error("MONGODB_URI is missing. Please check .env file.");
             process.exit(1);
         }
-        await mongoose.connect(process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGODB_URI);
         console.log("Connected to DB");
 
         const products = await Product.find({});
@@ -26,6 +26,10 @@ const checkProducts = async () => {
 
             const brands = await Product.distinct("brand");
             console.log("Brands found:", brands);
+            const categories = await Product.distinct("category");
+            console.log("Categories found:", categories);
+            const genders = await Product.distinct("gender");
+            console.log("Genders found:", genders);
         } else {
             console.log("No products found.");
         }

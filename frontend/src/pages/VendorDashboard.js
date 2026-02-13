@@ -33,8 +33,8 @@ const VendorDashboard = ({ user, onLogout }) => {
     category: "", // Default
     gender: "",   // Default
     brand: "",   // Default
-    sizes: "",       // Comma separated
-    colors: "",      // Comma separated
+    sizes: [],       // Array
+    colors: [],      // Array
     description: "",
     stock: "",
     image: null,
@@ -43,11 +43,13 @@ const VendorDashboard = ({ user, onLogout }) => {
 
   // ---- Fetch products from backend ----
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/products")
-      .then((res) => setProducts(res.data))
-      .catch((err) => console.log(err));
-  }, []);
+    if (vendorUser?.email) {
+      axios
+        .get(`http://localhost:5000/api/products?vendorId=${vendorUser.email}`)
+        .then((res) => setProducts(res.data))
+        .catch((err) => console.log(err));
+    }
+  }, [vendorUser?.email]);
 
   useEffect(() => {
     if (!vendorUser?.email) return;
@@ -63,10 +65,24 @@ const VendorDashboard = ({ user, onLogout }) => {
   const [analyticsData, setAnalyticsData] = useState({});
 
   useEffect(() => {
-    if (activeTab === "analytics" && vendorUser?.email) {
+    if ((activeTab === "analytics" || activeTab === "payments") && vendorUser?.email) {
       axios.get(`http://localhost:5000/api/vendor/analytics/${vendorUser.email}`)
         .then(res => setAnalyticsData(res.data))
         .catch(err => console.error("Analytics Error:", err));
+    }
+  }, [activeTab, vendorUser]);
+
+  // ---- Fetch Vendor Orders ----
+  const [vendorOrders, setVendorOrders] = useState([]);
+  useEffect(() => {
+    if (activeTab === "orders" && vendorUser?.email) {
+      console.log("Fetching orders for:", vendorUser.email); // DEBUG
+      axios.get(`http://localhost:5000/api/vendor/orders/${vendorUser.email}`)
+        .then(res => {
+          console.log("Orders received:", res.data); // DEBUG
+          setVendorOrders(res.data);
+        })
+        .catch(err => console.error("Orders Fetch Error:", err));
     }
   }, [activeTab, vendorUser]);
 
@@ -101,8 +117,25 @@ const VendorDashboard = ({ user, onLogout }) => {
     formData.append("category", newProduct.category);
     formData.append("gender", newProduct.gender);
     formData.append("brand", newProduct.brand);
-    formData.append("sizes", newProduct.sizes);
-    formData.append("colors", newProduct.colors);
+
+    // Handle Sizes Array
+    if (Array.isArray(newProduct.sizes)) {
+      newProduct.sizes.forEach(s => formData.append("sizes", s));
+    } else {
+      formData.append("sizes", newProduct.sizes);
+    }
+
+    // Handle Colors Array
+    if (Array.isArray(newProduct.colors)) {
+      newProduct.colors.forEach(c => formData.append("colors", c));
+      // Merge custom colors if any (optional feature)
+      if (newProduct.customColors && Array.isArray(newProduct.customColors)) {
+        newProduct.customColors.forEach(c => formData.append("colors", c));
+      }
+    } else {
+      formData.append("colors", newProduct.colors);
+    }
+
     formData.append("description", newProduct.description);
     formData.append("stock", newProduct.stock);
     formData.append("vendorId", vendorUser.email || vendorUser.name);
@@ -144,12 +177,13 @@ const VendorDashboard = ({ user, onLogout }) => {
     if (!window.confirm("Delete this product?")) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      // ✅ Pass vendorId to verify ownership
+      await axios.delete(`http://localhost:5000/api/products/${id}?vendorId=${vendorUser.email}`);
       setProducts(products.filter((p) => p._id !== id));
       alert("🗑️ Product deleted successfully!");
     } catch (err) {
       console.log(err);
-      alert("❌ Delete failed");
+      alert("❌ Delete failed: Unauthorized");
     }
   };
 
@@ -158,7 +192,7 @@ const VendorDashboard = ({ user, onLogout }) => {
     try {
       const res = await axios.put(
         `http://localhost:5000/api/products/${editingProduct._id}`,
-        editingProduct
+        { ...editingProduct, vendorId: vendorUser.email } // ✅ Explicitly pass vendorId
       );
 
       setProducts(
@@ -169,7 +203,7 @@ const VendorDashboard = ({ user, onLogout }) => {
       alert("✏️ Product updated successfully!");
     } catch (err) {
       console.log(err);
-      alert("❌ Update failed");
+      alert("❌ Update failed: Unauthorized");
     }
   };
 
@@ -177,9 +211,9 @@ const VendorDashboard = ({ user, onLogout }) => {
     <div className="vendor-dashboard">
       {/* Sidebar */}
       <aside className="vendor-sidebar">
-        <h2>{vendorUser.shopName}</h2>
+        <h2>{vendorUser.shopName} <small style={{ fontSize: '0.6rem' }}>(v2.0)</small></h2>
 
-        {["home", "profile", "products", "analytics"].map((tab) => (
+        {["home", "profile", "products", "orders", "payments", "analytics"].map((tab) => (
           <div
             key={tab}
             className={`sidebar-tab ${activeTab === tab ? "active" : ""}`}
@@ -220,7 +254,9 @@ const VendorDashboard = ({ user, onLogout }) => {
                     <h4>{p.name}</h4>
                     <p>₹{p.price}</p>
                     <p>Category: {p.category}</p>
-                    <p>Stock: {p.stock}</p>
+                    <p style={{ color: p.stock < 5 ? 'red' : 'inherit', fontWeight: p.stock < 5 ? 'bold' : 'normal' }}>
+                      Stock: {p.stock} {p.stock < 5 && '⚠️ Low Stock!'}
+                    </p>
 
                     <button onClick={() => setEditingProduct(p)} className="edit-btn">
                       Edit
@@ -409,9 +445,70 @@ const VendorDashboard = ({ user, onLogout }) => {
               <textarea name="description" placeholder="Product Description..." value={newProduct.description} onChange={handleProductChange} style={{ width: '100%', height: '80px', padding: '10px', marginBottom: '10px' }} />
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="text" name="sizes" placeholder="Sizes (S, M, L)" value={newProduct.sizes} onChange={handleProductChange} style={{ flex: 1 }} />
-                <input type="text" name="colors" placeholder="Colors (Red, Blue)" value={newProduct.colors} onChange={handleProductChange} style={{ flex: 1 }} />
+                <div style={{ flex: 1, marginBottom: '10px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Available Sizes</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {["XS", "S", "M", "L", "XL", "XXL", "3XL"].map(size => (
+                      <label key={size} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', background: '#eee', padding: '5px 10px', borderRadius: '4px' }}>
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(newProduct.sizes) ? newProduct.sizes.includes(size) : (newProduct.sizes || '').split(',').map(s => s.trim()).includes(size)}
+                          onChange={(e) => {
+                            const currentSizes = Array.isArray(newProduct.sizes) ? newProduct.sizes : (newProduct.sizes ? (newProduct.sizes || '').split(',').map(s => s.trim()) : []);
+                            let updatedSizes;
+                            if (e.target.checked) {
+                              updatedSizes = [...currentSizes, size];
+                            } else {
+                              updatedSizes = currentSizes.filter(s => s !== size);
+                            }
+                            setNewProduct({ ...newProduct, sizes: updatedSizes });
+                          }}
+                        />
+                        {size}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ flex: 1, marginBottom: '10px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Available Colors</label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Grey", "Orange", "Brown"].map(color => (
+                      <label key={color} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', background: '#eee', padding: '5px 10px', borderRadius: '4px', border: (Array.isArray(newProduct.colors) ? newProduct.colors.includes(color) : (newProduct.colors || '').split(',').map(c => c.trim()).includes(color)) ? `2px solid ${color.toLowerCase()}` : '2px solid transparent' }}>
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(newProduct.colors) ? newProduct.colors.includes(color) : (newProduct.colors || '').split(',').map(c => c.trim()).includes(color)}
+                          onChange={(e) => {
+                            const currentColors = Array.isArray(newProduct.colors) ? newProduct.colors : (newProduct.colors ? (newProduct.colors || '').split(',').map(c => c.trim()) : []);
+                            let updatedColors;
+                            if (e.target.checked) {
+                              updatedColors = [...currentColors, color];
+                            } else {
+                              updatedColors = currentColors.filter(c => c !== color);
+                            }
+                            setNewProduct({ ...newProduct, colors: updatedColors });
+                          }}
+                        />
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: color.toLowerCase(), border: '1px solid #ccc', display: 'inline-block' }}></span>
+                        {color}
+                      </label>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Other Colors (comma separated)"
+                    style={{ marginTop: '10px', width: '100%', fontSize: '0.8rem' }}
+                    onChange={(e) => {
+                      // Assuming users might want to add custom ones. 
+                      // For simplicity layout, let's keep it simple or append to array? 
+                      // Let's just stick to checkboxes as requested for now, or add this as valid functionality
+                      const specials = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setNewProduct(prev => ({ ...prev, customColors: specials }));
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>Selected: {Array.isArray(newProduct.colors) ? newProduct.colors.join(', ') : newProduct.colors}</p>
+                </div>
               </div>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '-5px', marginBottom: '10px' }}>Selected: {Array.isArray(newProduct.sizes) ? newProduct.sizes.join(', ') : newProduct.sizes}</p>
 
               <input type="number" name="stock" placeholder="Stock Quantity" value={newProduct.stock} onChange={handleProductChange} />
 
@@ -422,12 +519,12 @@ const VendorDashboard = ({ user, onLogout }) => {
               <input type="file" name="model3D" accept=".glb,.gltf" onChange={handleProductChange} />
 
               {/* SIZE CHART INPUT */}
-              {newProduct.sizes && (
+              {(Array.isArray(newProduct.sizes) && newProduct.sizes.length > 0) && (
                 <div className="size-chart-section" style={{ marginTop: '15px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' }}>
                   <h4>📏 Size Chart Details (Inches)</h4>
                   <p style={{ fontSize: '12px', color: '#666' }}>Enter measurements for each size to help customers fit better.</p>
 
-                  {newProduct.sizes.split(',').map(s => s.trim()).filter(s => s).map(size => (
+                  {newProduct.sizes.map(size => (
                     <div key={size} style={{ marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                       <strong style={{ display: 'block', marginBottom: '5px' }}>Size: {size}</strong>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -464,52 +561,353 @@ const VendorDashboard = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* ---- ANALYTICS ---- */}
-        {activeTab === "analytics" && (
-          <div className="analytics-section">
-            <h2>📊 Shop Analytics</h2>
+        {/* ---- ORDERS TAB ---- */}
+        {activeTab === "orders" && (
+          <div className="orders-section">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>📦 Customer Orders</h2>
+              {vendorOrders.length > 0 && (
+                <button
+                  onClick={() => {
+                    const headers = ["Order ID,Date,Customer Address,Items,Total,Status"];
+                    const rows = vendorOrders.map(o => {
+                      const items = o.items.map(i => `${i.name} (x${i.quantity})`).join(' | ');
+                      return `${o._id},${new Date(o.createdAt).toLocaleDateString()},"${(o.customerAddress || '').replace(/"/g, '""')}","${items}",${o.totalData},${o.status}`;
+                    });
+                    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+                    const link = document.createElement("a");
+                    link.href = encodeURI(csvContent);
+                    link.download = "orders_export.csv";
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  }}
+                  className="secondary-btn"
+                  style={{ fontSize: '0.9rem', padding: '8px 15px' }}
+                >
+                  📥 Export CSV
+                </button>
+              )}
+            </div>
+            {vendorOrders.length === 0 ? (
+              <p>No orders found.</p>
+            ) : (
+              <table className="analytics-table">
+                <thead>
+                  <tr>
+                    <th>Order Date</th>
+                    <th>Customer Address</th>
+                    <th>Items</th>
+                    <th>Total (Your Share)</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendorOrders.map((order) => (
+                    <tr key={order._id}>
+                      <td>{new Date(order.createdAt).toLocaleDateString()}</td>
+                      <td style={{ maxWidth: '200px' }}>{order.customerAddress || "N/A"}</td>
+                      <td>
+                        {order.items.map((item, i) => (
+                          <div key={i} style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '5px' }}>
+                            <img src={item.image?.startsWith("http") ? item.image : `http://localhost:5000${item.image}`} alt="" style={{ width: '30px', height: '30px', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '0.85rem' }}>
+                              {item.name} (x{item.quantity})
+                            </span>
+                          </div>
+                        ))}
+                      </td>
+                      <td>₹{order.totalData.toLocaleString()}</td>
+                      <td>
+                        <select
+                          value={order.status || 'Pending'}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            try {
+                              await axios.patch(`http://localhost:5000/api/orders/${order._id}/status`, { status: newStatus });
+                              // Optimistic update
+                              setVendorOrders(prev => prev.map(o => o._id === order._id ? { ...o, status: newStatus } : o));
+                              toast.success(`Order marked as ${newStatus}`);
+                            } catch (err) { toast.error("Failed to update status"); }
+                          }}
+                          className={`status-pill ${order.status?.toLowerCase() || 'pending'}`}
+                          style={{ border: 'none', outline: 'none', cursor: 'pointer' }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Cancelled">Cancelled</option>
+                          <option value="Refunded">Refunded</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          className="action-btn"
+                          title="Print Tax Invoice"
+                          style={{ background: '#607d8b', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', border: 'none' }}
+                          onClick={() => {
+                            const totalAmount = order.totalData;
+                            const taxAmount = (totalAmount * 0.18).toFixed(2); // Assuming 18% GST included
+                            const netAmount = (totalAmount - taxAmount).toFixed(2);
 
-            {/* Metrics Grid */}
+                            const invoiceContent = `
+                                        <html>
+                                            <head>
+                                              <title>Invoice #${order._id.slice(-6)}</title>
+                                              <style>
+                                                body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
+                                                .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+                                                .logo { font-size: 24px; font-weight: bold; color: #e91e63; }
+                                                .invoice-title { font-size: 20px; font-weight: bold; text-align: right; }
+                                                .meta { margin-top: 20px; display: flex; justify-content: space-between; }
+                                                .box { width: 45%; }
+                                                table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+                                                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                                                th { background: #f9f9f9; }
+                                                .total-section { margin-top: 20px; text-align: right; }
+                                                .footer { margin-top: 50px; font-size: 12px; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 20px; }
+                                              </style>
+                                            </head>
+                                            <body>
+                                                <div class="header">
+                                                    <div>
+                                                        <div class="logo">${vendorUser.shopName || "SmartStyle"}</div>
+                                                        <p>${vendorUser.address || "Vendor Address"}</p>
+                                                        <p>GSTIN: ${vendorUser.gstNumber || "N/A"}</p>
+                                                        <p>Phone: ${vendorUser.phone || "N/A"}</p>
+                                                    </div>
+                                                    <div>
+                                                        <div class="invoice-title">TAX INVOICE</div>
+                                                        <p><strong>Order ID:</strong> ${order._id}</p>
+                                                        <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="meta">
+                                                    <div class="box">
+                                                        <strong>Bill To:</strong>
+                                                        <p>${order.customerAddress || 'Customer Address'}</p>
+                                                    </div>
+                                                    <div class="box">
+                                                        <strong>Ship To:</strong>
+                                                        <p>${order.customerAddress || 'Customer Address'}</p>
+                                                    </div>
+                                                </div>
+
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Item Description</th>
+                                                            <th>Qty</th>
+                                                            <th>Unit Price</th>
+                                                            <th>Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${order.items.map(item => `
+                                                            <tr>
+                                                                <td>${item.name}</td>
+                                                                <td>${item.quantity}</td>
+                                                                <td>₹${item.price}</td>
+                                                                <td>₹${item.quantity * item.price}</td>
+                                                            </tr>
+                                                        `).join('')}
+                                                    </tbody>
+                                                </table>
+
+                                                <div class="total-section">
+                                                    <p>Subtotal: ₹${netAmount}</p>
+                                                    <p>GST (18% Included): ₹${taxAmount}</p>
+                                                    <h3>Grand Total: ₹${totalAmount}</h3>
+                                                </div>
+
+                                                <div class="footer">
+                                                    <p>Thank you for your business!</p>
+                                                    <p>This is a computer-generated invoice and does not require a signature.</p>
+                                                </div>
+                                                <script>window.print();</script>
+                                            </body>
+                                        </html>
+                                    `;
+                            const win = window.open('', '', 'width=800,height=900');
+                            win.document.write(invoiceContent);
+                            win.document.close();
+                          }}
+                        >
+                          📄 Invoice
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ---- PAYMENTS TAB ---- */}
+        {activeTab === "payments" && (
+          <div className="analytics-section">
+            <h2>💰 Payments & Payouts</h2>
+
             <div className="analytics-grid">
               <div className="analytics-card">
-                <h3>Total Revenue</h3>
-                <p className="analytics-value">₹{analyticsData.totalRevenue?.toLocaleString() || 0}</p>
+                <h3>Withdrawable Balance</h3>
+                <p className="analytics-value" style={{ color: '#4caf50' }}>₹{analyticsData.completedRevenue?.toLocaleString() || 0}</p>
+                <small>Revenue from Delivered Orders</small>
               </div>
               <div className="analytics-card">
-                <h3>Orders</h3>
-                <p className="analytics-value">{analyticsData.totalOrders || 0}</p>
-              </div>
-              <div className="analytics-card">
-                <h3>Items Sold</h3>
-                <p className="analytics-value">{analyticsData.productsSold || 0}</p>
+                <h3>Pending Clearance</h3>
+                <p className="analytics-value" style={{ color: '#ff9800' }}>₹{analyticsData.pendingRevenue?.toLocaleString() || 0}</p>
+                <small>Orders in Transit / New</small>
               </div>
             </div>
 
-            {/* Top Products Table */}
-            <div className="analytics-table-container">
+            <div className="content-card" style={{ marginTop: '20px', padding: '20px' }}>
+              <h3>🏦 Payout Methods</h3>
+              <div className="payment-method-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>🏦</span>
+                  <div>
+                    <strong>HDFC Bank **** 1234</strong>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Primary Account</p>
+                  </div>
+                </div>
+                <button className="secondary-btn">Manage</button>
+              </div>
+            </div>
+
+            <div className="content-card" style={{ marginTop: '20px', padding: '20px' }}>
+              <h3>Request Withdrawal</h3>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '10px' }}>
+                <input type="number" placeholder="Enter Amount" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                <button className="primary-btn" style={{ marginTop: 0 }} onClick={() => toast.success("Withdrawal Request Initiated")}>
+                  Withdraw Funds
+                </button>
+              </div>
+              <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '10px' }}>
+                ℹ️ Funds are typically credited within 24 hours. Minimum withdrawal: ₹500.
+              </p>
+            </div>
+
+            <div className="content-card" style={{ marginTop: '20px', padding: '20px' }}>
+              <h3>Recent Transactions</h3>
+              <table className="analytics-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analyticsData.transactions?.length > 0 ? (
+                    analyticsData.transactions.map((txn, i) => (
+                      <tr key={i}>
+                        <td>{new Date(txn.date).toLocaleDateString()}</td>
+                        <td>{txn.description}</td>
+                        <td style={{ color: txn.type === 'credit' ? 'green' : 'red' }}>
+                          {txn.type === 'credit' ? '+' : '-'} ₹{txn.amount.toLocaleString()}
+                        </td>
+                        <td>
+                          <span className={`status-pill ${txn.status === 'Completed' ? 'delivered' : 'pending'}`}>
+                            {txn.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No recent transactions.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ---- ANALYTICS ---- */}
+        {/* ---- ANALYTICS TAB ---- */}
+        {activeTab === "analytics" && (
+          <div className="analytics-section">
+            <h2>📊 Business Analytics</h2>
+
+            {/* Metric Cards */}
+            <div className="analytics-grid">
+              <div className="analytics-card">
+                <h3>Total Sales (GMV)</h3>
+                <p className="analytics-value">₹{analyticsData.totalRevenue?.toLocaleString() || 0}</p>
+                <small>Lifetime Revenue</small>
+              </div>
+              <div className="analytics-card">
+                <h3>Orders Processed</h3>
+                <p className="analytics-value">{analyticsData.totalOrders || 0}</p>
+                <small>Across all products</small>
+              </div>
+              <div className="analytics-card">
+                <h3>Products Sold</h3>
+                <p className="analytics-value">{analyticsData.productsSold || 0}</p>
+                <small>Units sold</small>
+              </div>
+            </div>
+
+            {/* Sales Chart */}
+            <div className="content-card" style={{ marginTop: '20px', padding: '20px' }}>
+              <h3>📈 Sales Trends (Last 6 Months)</h3>
+              <div className="chart-container">
+                {analyticsData.salesGraph ? (
+                  <div className="css-bar-chart">
+                    {analyticsData.salesGraph.data.map((val, i) => {
+                      const max = Math.max(...analyticsData.salesGraph.data, 1);
+                      const height = (val / max) * 100; // Percentage and ensure min height for visibility
+                      const barHeight = height > 0 ? `${height}%` : '4px';
+                      return (
+                        <div key={i} className="chart-bar-group">
+                          <div className="chart-bar-wrapper">
+                            <div className="chart-bar" style={{ height: barHeight, background: val > 0 ? '#4caf50' : '#ddd' }}>
+                              <span className="tooltip">₹{val.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <span className="chart-label">{analyticsData.salesGraph.labels[i]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>Loading chart...</p>
+                )}
+              </div>
+            </div>
+
+            {/* Top Products */}
+            <div className="content-card" style={{ marginTop: '20px', padding: '20px' }}>
               <h3>🏆 Top Selling Products</h3>
               {analyticsData.topProducts?.length > 0 ? (
                 <table className="analytics-table">
                   <thead>
                     <tr>
-                      <th>Product Name</th>
+                      <th>Product</th>
                       <th>Units Sold</th>
                       <th>Revenue</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {analyticsData.topProducts.map((p, idx) => (
-                      <tr key={idx}>
-                        <td>{p.name}</td>
+                    {analyticsData.topProducts.map((p, i) => (
+                      <tr key={i}>
+                        <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {p.image && <img src={`http://localhost:5000${p.image}`} alt="" style={{ width: 40, height: 40, borderRadius: 4 }} />}
+                          {p.name}
+                        </td>
                         <td>{p.quantity}</td>
                         <td>₹{p.revenue.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              ) : (
-                <p>No sales data yet.</p>
-              )}
+              ) : <p>No sales data yet.</p>}
             </div>
           </div>
         )}

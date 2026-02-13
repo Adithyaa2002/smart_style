@@ -107,10 +107,11 @@ const ProductDetails = () => {
                                     hips: Number(measurements.hips),
                                     thigh: Number(measurements.thigh),
                                     shoulders: Number(measurements.shoulders),
+                                    gender: measurements.gender
                                 }}
-                                clothingModelUrl={null}
-                                modelUrl="/models/dressM.glb"
-                                key={showTryOn ? "active" : "inactive"}
+                                clothingModelUrl={product.model3D ? (product.model3D.startsWith('http') ? product.model3D : `http://localhost:5000${product.model3D}`) : null}
+                                modelUrl={measurements.gender === 'male' ? "/models/male_base.glb" : "/models/female_base.glb"}
+                                key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
                             <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
                         </div >
@@ -183,6 +184,19 @@ const ProductDetails = () => {
                                 setIsDemoMode(false);
                                 setOverrideModel(null);
                                 setShowTryOn(true);
+
+                                // Save History
+                                const uStr = localStorage.getItem("user");
+                                if (uStr) {
+                                    const u = JSON.parse(uStr);
+                                    if (u.email) {
+                                        axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
+                                            productId: product._id,
+                                            productName: product.name,
+                                            productImage: product.image
+                                        }).catch(e => console.log("History log failed", e));
+                                    }
+                                }
                             }}>
                                 👕 Try This Product
                             </button>

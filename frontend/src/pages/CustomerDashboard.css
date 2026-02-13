@@ -470,3 +470,137 @@ body {
     width: 100%;
   }
 }
+
+/* CATEGORY DROPDOWN MENU */
+.category-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 5px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  padding: 15px;
+  z-index: 1000;
+  width: 400px;
+  /* Mega menu width */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.category-group strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+  color: #e91e63;
+  text-transform: uppercase;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 3px;
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.category-list span {
+  font-size: 0.85rem;
+  color: #555;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.category-list span:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.clear-cat-btn {
+  font-size: 0.8rem;
+  color: #888;
+  cursor: pointer;
+  text-decoration: underline;
+  display: block;
+  margin-top: 10px;
+}
+
+.clear-cat-btn:hover {
+  color: #ff4444;
+}
+
+.filter-chip.active {
+  background: #e91e63;
+  color: white;
+  border-color: #e91e63;
+}
+
+@media (max-width: 600px) {
+  .category-dropdown-menu {
+    width: 280px;
+    grid-template-columns: 1fr;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+}
+
+/* Update specific styles for new dropdown features */
+.cat-item {
+  display: block;
+}
+
+.cat-item.selected {
+  background-color: #ffe0eb;
+  color: #e91e63;
+  font-weight: 600;
+}
+
+.cat-item.view-all {
+  font-weight: 600;
+  color: #2874f0;
+}
+
+.cat-item.view-all:hover {
+  background-color: #e0f2ff;
+  color: #1c54b2;
+}
+
+/* SORT DROPDOWN (Matches Category Dropdown Style) */
+.sort-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 5px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  z-index: 1000;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sort-option {
+  padding: 8px 15px;
+  font-size: 0.9rem;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.sort-option:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.sort-option.selected {
+  background: #fff0f6;
+  color: #e91e63;
+  font-weight: 600;
+}

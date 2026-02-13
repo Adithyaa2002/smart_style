@@ -9,6 +9,41 @@ const VirtualTryOn = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('browse');
 
+  // FACE PARAMS STATE
+  const [faceParams, setFaceParams] = useState(JSON.parse(localStorage.getItem('faceParams')) || null);
+  const [isFaceLoading, setIsFaceLoading] = useState(false);
+
+  const handleFaceUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsFaceLoading(true);
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/avatar/face-from-photo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setFaceParams(data.faceParams);
+        localStorage.setItem('faceParams', JSON.stringify(data.faceParams));
+        alert("✅ Face Generated Successfully! Switch to Preview to see changes.");
+      } else {
+        alert("❌ Error: " + (data.message || 'Face analysis failed'));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("❌ Upload Failed: " + error.message);
+    } finally {
+      setIsFaceLoading(false);
+    }
+  };
+
   // Sample products for try-on
   const tryOnProducts = [
     {
@@ -135,7 +170,78 @@ const VirtualTryOn = () => {
             >
               💾 Saved Outfits
             </button>
+            <button
+              className={`tab-btn ${activeTab === 'face' ? 'active' : ''}`}
+              onClick={() => setActiveTab('face')}
+            >
+              👤 Avatar Face
+            </button>
           </div>
+
+          {activeTab === 'face' && (
+            <div className="products-list">
+              <h3>Face Customization</h3>
+
+              <div className="face-upload-section" style={{
+                background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px',
+                border: '2px dashed #ccc', textAlign: 'center'
+              }}>
+                <h4>🤖 AI Face Generator</h4>
+                <p style={{ fontSize: '0.9rem', color: '#666' }}>Upload a selfie to generate your unique 3D face.</p>
+
+                <input
+                  type="file"
+                  id="face-upload"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFaceUpload(e)}
+                />
+
+                <button
+                  className="add-to-tryon-btn"
+                  onClick={() => document.getElementById('face-upload').click()}
+                  disabled={isFaceLoading}
+                  style={{ width: '100%', marginTop: '10px' }}
+                >
+                  {isFaceLoading ? 'Processing...' : '📸 Upload Photo'}
+                </button>
+              </div>
+
+              {faceParams && (
+                <div className="face-controls" style={{ marginTop: '20px' }}>
+                  <h4>Manual Adjustments</h4>
+                  {Object.entries(faceParams).map(([key, value]) => (
+                    // Only show numeric sliders
+                    typeof value === 'number' && (
+                      <div key={key} className="control-group" style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                          <span>{value.toFixed(2)}</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={value}
+                          onChange={(e) => setFaceParams({ ...faceParams, [key]: parseFloat(e.target.value) })}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                    )
+                  ))}
+
+                  <button
+                    className="action-btn secondary"
+                    onClick={() => setFaceParams(null)}
+                    style={{ width: '100%', marginTop: '10px' }}
+                  >
+                    Reset Face
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {activeTab === 'browse' && (
             <div className="products-list">
@@ -273,6 +379,7 @@ const VirtualTryOn = () => {
                       measurements={JSON.parse(localStorage.getItem("userMeasurements")) || {
                         chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female"
                       }}
+                      faceParams={faceParams} // ✅ Pass Face Params
                     />
                   </div>
                   <div className="preview-info">

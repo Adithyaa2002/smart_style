@@ -60,7 +60,44 @@ const CustomerDashboard = ({ user, onLogout }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
+
   const [selectedClothing, setSelectedClothing] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [sortBy, setSortBy] = useState("relevance"); // Default sort
+
+  const dropdownRef = React.useRef(null);
+  const sortDropdownRef = React.useRef(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target)) {
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const SORT_OPTIONS = [
+    { label: "Relevance", value: "relevance" },
+    { label: "Newest First", value: "newest" },
+    { label: "Price: Low to High", value: "price_asc" },
+    { label: "Price: High to Low", value: "price_desc" },
+    { label: "Top Rated", value: "rating" },
+  ];
+
+  const CATEGORY_OPTIONS = {
+    "Men": { icon: "👨", items: ["Shirts", "T-Shirts", "Jeans", "Trousers", "Jackets", "Suits", "Kurtas"] },
+    "Women": { icon: "👩", items: ["Dresses", "Tops", "Jeans", "Skirts", "Sarees", "Lehengas", "Kurtas"] },
+    "Kids": { icon: "🧸", items: ["T-Shirts", "Shorts", "Dresses", "Sets", "Bodysuits"] },
+    "Accessories": { icon: "👜", items: ["Watches", "Bags", "Shoes", "Jewelry", "Belts", "Sunglasses"] }
+  };
 
   // Filter State
   const [filters, setFilters] = useState({
@@ -110,6 +147,9 @@ const CustomerDashboard = ({ user, onLogout }) => {
     if (filters.gender) params.append("gender", filters.gender);
     if (filters.brand) params.append("brand", filters.brand);
 
+    // Sort Param
+    if (sortBy && sortBy !== "relevance") params.append("sort", sortBy);
+
     console.log("🔍 Fetching Products with Params:", params.toString()); // DEBUG LOG
 
     axios
@@ -121,10 +161,10 @@ const CustomerDashboard = ({ user, onLogout }) => {
       .catch((err) => console.log("❌ Failed to load products", err));
   };
 
-  // Re-fetch when filters or search change
+  // Re-fetch when filters, search, or sort change
   useEffect(() => {
     fetchProducts();
-  }, [filters, searchTerm]); // Auto-fetch on change
+  }, [filters, searchTerm, sortBy]); // Auto-fetch on change
 
   // --- Fetch Orders ---
   useEffect(() => {
@@ -136,6 +176,28 @@ const CustomerDashboard = ({ user, onLogout }) => {
   }, [activeTab, customer]);
 
   // Optional debug
+  const [banners, setBanners] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/banners')
+      .then(res => {
+        if (Array.isArray(res.data)) setBanners(res.data);
+        else setBanners([]);
+      })
+      .catch(err => console.log(err));
+
+  }, []);
+
+  // --- Fetch Recommendations ---
+  useEffect(() => {
+    const uid = customer?.userId || user?._id || user?.id;
+    if (uid && activeTab === "home") {
+      axios.get(`http://localhost:5000/api/products/recommendations?userId=${uid}`)
+        .then(res => setRecommendations(res.data))
+        .catch(err => console.error("Failed to fetch recommendations", err));
+    }
+  }, [customer, user, activeTab]);
+
   useEffect(() => {
     // uncomment while debugging
     // console.log("CUSTOMER STATE =>", customer);
@@ -231,7 +293,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
 
       <div className="dashboard-body">
         <aside className="profile-sidebar">
-          {["home", "wishlist", "cart", "orders", "profile", "avatar"].map((tab) => (
+          {["home", "wishlist", "cart", "orders", "profile", "avatar", "history"].map((tab) => (
             <div
               key={tab}
               className={`sidebar-tab ${activeTab === tab ? "active" : ""}`}
@@ -246,6 +308,89 @@ const CustomerDashboard = ({ user, onLogout }) => {
           {/* HOME */}
           {activeTab === "home" && (
             <div className="home-container">
+
+              {/* 🆕 PROMOTIONAL BANNERS CAROUSEL */}
+              {banners.length > 0 && (
+                <div className="banner-carousel-container" style={{
+                  width: '100%',
+                  overflowX: 'auto',
+                  whiteSpace: 'nowrap',
+                  marginBottom: '20px',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {banners.map(b => (
+                      <div key={b._id} style={{ position: 'relative', minWidth: '100%', height: '300px', flexShrink: 0 }}>
+                        <img
+                          src={b.image.startsWith("http") ? b.image : `http://localhost:5000${b.image}`}
+                          alt={b.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px', cursor: 'pointer' }}
+                          onClick={() => {
+                            if (b.link) {
+                              if (b.link.includes('category=')) {
+                                const cat = b.link.split('=')[1];
+                                setFilters({ ...filters, category: cat });
+                                toast.info(`Filtering by ${cat}`);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              )}
+
+              {/* ⭐ RECOMMENDATIONS SECTION ⭐ */}
+              {recommendations.length > 0 && (
+                <div className="recommendations-section" style={{ marginBottom: "30px", padding: "0 10px" }}>
+                  <h3 style={{ color: "#333", fontSize: "1.2rem", marginBottom: "15px" }}>Recommended for You ✨</h3>
+                  <div className="catalog-grid-smart">
+                    {recommendations.map((product) => (
+                      <div key={product._id} className="smart-product-card">
+                        <div className="card-image-container" onClick={() => navigate(`/product/${product._id}`, { state: product })} style={{ cursor: "pointer" }}>
+                          {/* Label for Recommendation */}
+                          <div style={{
+                            position: "absolute", top: "10px", left: "10px",
+                            background: "rgba(233, 30, 99, 0.9)", color: "white",
+                            padding: "4px 8px", borderRadius: "12px", fontSize: "10px", fontWeight: "bold", zIndex: 2
+                          }}>
+                            FOR YOU
+                          </div>
+                          <img
+                            src={
+                              product.image?.startsWith("http")
+                                ? product.image
+                                : `http://localhost:5000${product.image}`
+                            }
+                            alt={product.name}
+                          />
+                          <button
+                            className={`wishlist-icon ${isWishlisted(product._id) ? "active" : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              isWishlisted(product._id) ? removeFromWishlist(product._id) : addToWishlist(product);
+                            }}
+                          >
+                            {isWishlisted(product._id) ? "❤️" : "🤍"}
+                          </button>
+                        </div>
+
+                        <div className="card-details">
+                          <h4 className="product-name">{product.name}</h4>
+                          <p style={{ fontSize: "1.1rem", fontWeight: "bold", margin: "5px 0" }}>₹{product.price}</p>
+                          <div className="delivery-tag">Free Delivery</div>
+                          <div className="rating-badge">
+                            {product.rating ? product.rating.toFixed(1) : "0.0"} ★
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 1. CATEGORY CIRCLES (Horizontal Scroll) */}
               <div className="category-circles-section">
@@ -273,12 +418,91 @@ const CustomerDashboard = ({ user, onLogout }) => {
 
               {/* 2. FILTER & SORT BAR (Sticky) */}
               <div className="filter-sort-bar">
-                <button className="filter-chip" onClick={() => {/* Toggle Sort Modal */ }}>
-                  ⇅ Sort
-                </button>
-                <button className="filter-chip active-dropdown">
-                  Category ▼
-                </button>
+                <div style={{ position: 'relative' }} ref={sortDropdownRef}>
+                  <button
+                    className={`filter-chip ${showSortDropdown || sortBy !== "relevance" ? 'active' : ''}`}
+                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  >
+                    ⇅ {sortBy === "relevance" ? "Sort" : SORT_OPTIONS.find(o => o.value === sortBy)?.label}
+                  </button>
+                  {showSortDropdown && (
+                    <div className="sort-dropdown-menu">
+                      {SORT_OPTIONS.map(opt => (
+                        <div
+                          key={opt.value}
+                          className={`sort-option ${sortBy === opt.value ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSortBy(opt.value);
+                            setShowSortDropdown(false);
+                          }}
+                        >
+                          {opt.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }} ref={dropdownRef}>
+                  <button
+                    className={`filter-chip ${showCategoryDropdown || filters.category ? 'active' : ''}`}
+                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                  >
+                    {filters.category ? filters.category : "Category ▼"}
+                  </button>
+                  {showCategoryDropdown && (
+                    <div className="category-dropdown-menu">
+                      {Object.keys(CATEGORY_OPTIONS).map(gender => (
+                        <div key={gender} className="category-group">
+                          <strong>{CATEGORY_OPTIONS[gender].icon} {gender}</strong>
+                          <div className="category-list">
+                            {/* View All Option */}
+                            <span
+                              className="cat-item view-all"
+                              onClick={() => {
+                                setFilters({
+                                  ...filters,
+                                  gender: gender === "Accessories" ? "" : gender,
+                                  category: ""
+                                });
+                                setShowCategoryDropdown(false);
+                              }}
+                            >
+                              View All {gender}
+                            </span>
+
+                            {CATEGORY_OPTIONS[gender].items.map(subCat => (
+                              <span
+                                key={subCat}
+                                className={`cat-item ${filters.category === subCat ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setFilters({
+                                    ...filters,
+                                    gender: gender === "Accessories" ? "" : gender,
+                                    category: subCat
+                                  });
+                                  setShowCategoryDropdown(false);
+                                }}
+                              >
+                                {subCat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="category-group">
+                        <span
+                          className="clear-cat-btn"
+                          onClick={() => {
+                            setFilters({ ...filters, category: "", gender: "" });
+                            setShowCategoryDropdown(false);
+                          }}
+                        >
+                          Clear Selection
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button className="filter-chip" onClick={() => setShowFilterDrawer(true)}>
                   ⚙ Filters
                 </button>
@@ -618,7 +842,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                         for (let i = 19; i <= 25; i++) options.push(i);
                       } else if (m === "shoulders") {
                         label += " (IN)";
-                        for (let i = 13; i <= 18; i++) options.push(i);
+                        for (let i = 13; i <= 15; i++) options.push(i);
                       }
 
                       return (
@@ -865,9 +1089,35 @@ const CustomerDashboard = ({ user, onLogout }) => {
               )}
             </div>
           )}
+          {/* HISTORY */}
+          {activeTab === "history" && (
+            <div className="history-section" style={{ padding: '20px' }}>
+              <h2>🕒 Virtual Try-On History</h2>
+              {!customer.tryOnHistory || customer.tryOnHistory.length === 0 ? (
+                <p>You haven't tried on any clothes yet.</p>
+              ) : (
+                <div className="catalog-grid-smart">
+                  {customer.tryOnHistory.map((item, idx) => (
+                    <div key={idx} className="smart-product-card" onClick={() => navigate(`/product/${item.productId}`)} style={{ cursor: 'pointer' }}>
+                      <div className="card-image-container">
+                        <img
+                          src={item.productImage?.startsWith("http") ? item.productImage : `http://localhost:5000${item.productImage}`}
+                          alt={item.productName}
+                        />
+                      </div>
+                      <div className="card-details">
+                        <h4>{item.productName}</h4>
+                        <p style={{ fontSize: '0.8rem', color: '#666' }}>Tried on {new Date(item.triedAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </main>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

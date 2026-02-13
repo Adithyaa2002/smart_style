@@ -43,6 +43,16 @@ app.use('/api/products', productRoutes); // <-- NEW
 app.use("/api/customer", customerRoutes);
 app.use("/api/orders", orderRoutes);
 
+// Admin Routes
+const adminRoutes = require('./routes/adminRoutes');
+app.use('/api', adminRoutes); // Mounts /api/analytics and /api/settings
+
+const bannerRoutes = require('./routes/bannerRoutes');
+app.use('/api/banners', bannerRoutes);
+
+// ✅ Avatar Routes
+app.use('/api/avatar', require('./routes/avatarRoutes'));
+
 // Root Route (Friendly Message)
 app.get('/', (req, res) => {
   res.send(`

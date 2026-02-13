@@ -3,6 +3,25 @@ import './Footer.css';
 import { Link } from 'react-router-dom';
 
 const Footer = () => {
+    const [footerInfo, setFooterInfo] = React.useState({
+        helpline: '',
+        officialEmail: ''
+    });
+
+    React.useEffect(() => {
+        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/settings`)
+            .then(res => res.json())
+            .then(data => {
+                if (data) {
+                    setFooterInfo({
+                        helpline: data.helpline,
+                        officialEmail: data.officialEmail
+                    });
+                }
+            })
+            .catch(err => console.log('Footer settings fetch error:', err));
+    }, []);
+
     return (
         <footer className="site-footer">
             <div className="footer-content">
@@ -35,6 +54,17 @@ const Footer = () => {
                         <li><Link to="#">Track Order</Link></li>
                         <li><Link to="#">Returns & Refunds</Link></li>
                         <li><Link to="#">Shipping Info</Link></li>
+                        {/* Dynamic Contact Info */}
+                        {footerInfo.helpline && (
+                            <li style={{ marginTop: '10px', color: '#ccc', fontSize: '0.9rem' }}>
+                                📞 {footerInfo.helpline}
+                            </li>
+                        )}
+                        {footerInfo.officialEmail && (
+                            <li style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                                ✉️ {footerInfo.officialEmail}
+                            </li>
+                        )}
                     </ul>
                 </div>
 

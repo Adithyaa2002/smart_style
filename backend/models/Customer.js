@@ -21,6 +21,13 @@ const CustomerSchema = new mongoose.Schema({
     hips: String,
   },
 
+  tryOnHistory: [{
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    productName: String,
+    productImage: String,
+    triedAt: { type: Date, default: Date.now }
+  }]
+
 }, { timestamps: true });
 
 module.exports = mongoose.model("Customer", CustomerSchema);

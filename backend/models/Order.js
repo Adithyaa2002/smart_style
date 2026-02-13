@@ -18,6 +18,7 @@ const orderSchema = new mongoose.Schema(
         price: Number,
         quantity: Number,
         image: String,
+        vendorId: String, // Snapshot of vendor at purchase time
       },
     ],
 

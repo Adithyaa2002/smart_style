@@ -55,4 +55,36 @@ router.put("/:email", async (req, res) => {
   }
 });
 
+// ADD TRY-ON HISTORY
+router.post("/:email/tryon", async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+  const { productId, productName, productImage } = req.body;
+  try {
+    const customer = await Customer.findOne({ email });
+    if (!customer) return res.status(404).json({ error: "Customer not found" });
+
+    // Check if distinct product
+    const existingIdx = customer.tryOnHistory ? customer.tryOnHistory.findIndex(h => h.productId && h.productId.toString() === productId) : -1;
+
+    if (existingIdx > -1) {
+      // Move to top
+      customer.tryOnHistory.splice(existingIdx, 1);
+    }
+
+    if (!customer.tryOnHistory) customer.tryOnHistory = [];
+
+    // Add to top
+    customer.tryOnHistory.unshift({ productId, productName, productImage });
+
+    // Limit history
+    if (customer.tryOnHistory.length > 20) customer.tryOnHistory.pop();
+
+    await customer.save();
+    res.json(customer.tryOnHistory);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

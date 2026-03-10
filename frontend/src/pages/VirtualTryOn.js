@@ -8,10 +8,26 @@ const VirtualTryOn = () => {
   const [outfitHistory, setOutfitHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('browse');
+  const [products, setProducts] = useState([]); // Real products from DB
 
-  // FACE PARAMS STATE
+  // CLOTHING ADJUSTMENT STATE
+  const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
+
+  // MEASUREMENTS & FACE PARAMS
+  const [measurements, setMeasurements] = useState(() => {
+    const saved = localStorage.getItem("userMeasurements");
+    return saved ? JSON.parse(saved) : {
+      chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female"
+    };
+  });
   const [faceParams, setFaceParams] = useState(JSON.parse(localStorage.getItem('faceParams')) || null);
   const [isFaceLoading, setIsFaceLoading] = useState(false);
+
+  const updateGender = (gender) => {
+    const updated = { ...measurements, gender };
+    setMeasurements(updated);
+    localStorage.setItem("userMeasurements", JSON.stringify(updated));
+  };
 
   const handleFaceUpload = async (e) => {
     const file = e.target.files[0];
@@ -44,8 +60,22 @@ const VirtualTryOn = () => {
     }
   };
 
-  // Sample products for try-on
-  const tryOnProducts = [
+  // FETCH PRODUCTS
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/products`);
+        const data = await response.json();
+        setProducts(data);
+      } catch (err) {
+        console.error("Failed to fetch products:", err);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  // Filter products for try-on
+  const displayProducts = products.length > 0 ? products : [
     {
       id: '1',
       name: 'Classic White T-Shirt',
@@ -176,7 +206,88 @@ const VirtualTryOn = () => {
             >
               👤 Avatar Face
             </button>
+            <button
+              className={`tab-btn ${activeTab === 'adjust' ? 'active' : ''}`}
+              onClick={() => setActiveTab('adjust')}
+            >
+              🔧 Adjustments
+            </button>
           </div>
+
+          {activeTab === 'adjust' && (
+            <div className="products-list">
+              <h3>Clothing & Body Fixes</h3>
+
+              <div className="gender-selection" style={{ marginBottom: '20px' }}>
+                <h4>Body Type Selection</h4>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button
+                    className={`filter-btn ${measurements.gender === 'male' ? 'active' : ''}`}
+                    onClick={() => updateGender('male')}
+                    style={{ flex: 1 }}
+                  >
+                    👨 Male
+                  </button>
+                  <button
+                    className={`filter-btn ${measurements.gender === 'female' ? 'active' : ''}`}
+                    onClick={() => updateGender('female')}
+                    style={{ flex: 1 }}
+                  >
+                    👩 Female
+                  </button>
+                </div>
+              </div>
+
+              <div className="clothing-adjustment" style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
+                <h4>👕 Clothing Manual Fixes</h4>
+                <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '15px' }}>Use these to fix size and alignment issues.</p>
+
+                <div className="control-group" style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    Scale Multiplier <span>{clothingAdj.scale.toFixed(2)}x</span>
+                  </label>
+                  <input type="range" min="0.5" max="5.0" step="0.05" value={clothingAdj.scale}
+                    onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#007bff' }} />
+                </div>
+
+                <div className="control-group" style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    Horizontal (X) <span>{clothingAdj.x.toFixed(2)}</span>
+                  </label>
+                  <input type="range" min="-2.0" max="2.0" step="0.01" value={clothingAdj.x}
+                    onChange={(e) => setClothingAdj({ ...clothingAdj, x: parseFloat(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#007bff' }} />
+                </div>
+
+                <div className="control-group" style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    Vertical (Y) <span>{clothingAdj.y.toFixed(2)}</span>
+                  </label>
+                  <input type="range" min="-2.0" max="2.0" step="0.01" value={clothingAdj.y}
+                    onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#28a745' }} />
+                </div>
+
+                <div className="control-group" style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    Depth (Z) <span>{clothingAdj.z.toFixed(2)}</span>
+                  </label>
+                  <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.z}
+                    onChange={(e) => setClothingAdj({ ...clothingAdj, z: parseFloat(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#dc3545' }} />
+                </div>
+
+                <button
+                  className="action-btn secondary"
+                  onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
+                  style={{ width: '100%', fontSize: '0.8rem' }}
+                >
+                  Reset Adjustments
+                </button>
+              </div>
+            </div>
+          )}
 
           {activeTab === 'face' && (
             <div className="products-list">
@@ -210,6 +321,25 @@ const VirtualTryOn = () => {
               {faceParams && (
                 <div className="face-controls" style={{ marginTop: '20px' }}>
                   <h4>Manual Adjustments</h4>
+
+                  {/* Skin Color Picker */}
+                  <div className="control-group" style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                      Skin Tone
+                      <span>{faceParams.skinColor || "#e8beac"}</span>
+                    </label>
+                    <input
+                      type="color"
+                      value={faceParams.skinColor || "#e8beac"}
+                      onChange={(e) => {
+                        const newParams = { ...faceParams, skinColor: e.target.value };
+                        setFaceParams(newParams);
+                        localStorage.setItem('faceParams', JSON.stringify(newParams));
+                      }}
+                      style={{ width: '100%', height: '40px', cursor: 'pointer', border: 'none', background: 'none' }}
+                    />
+                  </div>
+
                   {Object.entries(faceParams).map(([key, value]) => (
                     // Only show numeric sliders
                     typeof value === 'number' && (
@@ -224,7 +354,11 @@ const VirtualTryOn = () => {
                           max="1"
                           step="0.01"
                           value={value}
-                          onChange={(e) => setFaceParams({ ...faceParams, [key]: parseFloat(e.target.value) })}
+                          onChange={(e) => {
+                            const newParams = { ...faceParams, [key]: parseFloat(e.target.value) };
+                            setFaceParams(newParams);
+                            localStorage.setItem('faceParams', JSON.stringify(newParams));
+                          }}
                           style={{ width: '100%' }}
                         />
                       </div>
@@ -255,21 +389,28 @@ const VirtualTryOn = () => {
               </div>
 
               <div className="tryon-products-grid">
-                {tryOnProducts.map(product => (
-                  <div key={product.id} className="tryon-product-card">
-                    <img src={product.image} alt={product.name} />
-                    <div className="product-info">
-                      <h4>{product.name}</h4>
-                      <p>${product.price}</p>
-                      <button
-                        className="add-to-tryon-btn"
-                        onClick={() => addToTryOn(product)}
-                      >
-                        + Add to Try-On
-                      </button>
+                {displayProducts.map(product => {
+                  const id = product._id || product.id;
+                  const price = product.price;
+                  const name = product.name;
+                  const image = product.image?.startsWith('http') ? product.image : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${product.image}`;
+
+                  return (
+                    <div key={id} className="tryon-product-card">
+                      <img src={image} alt={name} />
+                      <div className="product-info">
+                        <h4>{name}</h4>
+                        <p>${price}</p>
+                        <button
+                          className="add-to-tryon-btn"
+                          onClick={() => addToTryOn({ ...product, id, image })}
+                        >
+                          + Add to Try-On
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -357,62 +498,51 @@ const VirtualTryOn = () => {
               )}
             </div>
 
-            {/* Try-On Preview Area */}
-            <div className="tryon-preview">
+            {/* Try-On Preview Area - PERSISTENT */}
+            <div className="tryon-preview-container" style={{ position: 'relative', height: '650px', background: '#e9ecef', borderRadius: '12px' }}>
               {isLoading ? (
-                <div className="loading-preview">
+                <div className="loading-preview" style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)' }}>
                   <div className="spinner"></div>
                   <h3>AI is creating your virtual try-on...</h3>
-                  <p>This may take a few seconds</p>
-                </div>
-              ) : activeTab === 'preview' ? (
-                <div className="preview-result" style={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
-                  <div className="outfit-preview-large" style={{ flex: 1, position: 'relative' }}>
-                    {/* REAL 3D VIEWER */}
-                    <AvatarViewer
-                      modelUrl={
-                        (JSON.parse(localStorage.getItem("userMeasurements"))?.gender === "male")
-                          ? "/models/male_base.glb"
-                          : "/models/female_base.glb"
-                      }
-                      clothingModelUrl="/models/dressM.glb"
-                      measurements={JSON.parse(localStorage.getItem("userMeasurements")) || {
-                        chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female"
-                      }}
-                      faceParams={faceParams} // ✅ Pass Face Params
-                    />
-                  </div>
-                  <div className="preview-info">
-                    <h3>Your Virtual Outfit</h3>
-                    <div className="outfit-details">
-                      {selectedProducts.map(product => (
-                        <div key={product.id} className="outfit-item">
-                          <span>{product.name}</span>
-                          <span>${product.price}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="preview-actions">
-                      <button className="action-btn primary">🛒 Add All to Cart</button>
-                      <button className="action-btn secondary">📷 Screenshot</button>
-                      <button className="action-btn secondary" onClick={() => setActiveTab('browse')}>
-                        ← Back to Products
-                      </button>
-                    </div>
-                  </div>
                 </div>
               ) : (
-                <div className="preview-placeholder">
-                  <div className="placeholder-content">
-                    <div className="placeholder-icon">👗</div>
-                    <h3>Ready for Virtual Try-On!</h3>
-                    <p>Select products and click "Try On Now" to see how they look on you</p>
-                    <div className="feature-list">
-                      <div className="feature-item">✅ AI-powered fitting</div>
-                      <div className="feature-item">✅ Realistic preview</div>
-                      <div className="feature-item">✅ Save your favorite outfits</div>
-                    </div>
+                <div className="preview-result" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div className="outfit-preview-large" style={{ flex: 1, position: 'relative' }}>
+                    <AvatarViewer
+                      measurements={measurements}
+                      modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
+                      clothingModelUrl={
+                        selectedProducts.length > 0
+                          ? (selectedProducts[selectedProducts.length - 1].model3D?.startsWith('http')
+                            ? selectedProducts[selectedProducts.length - 1].model3D
+                            : `http://localhost:5000${selectedProducts[selectedProducts.length - 1].model3D}`)
+                          : null
+                      }
+                      category={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].type || selectedProducts[selectedProducts.length - 1].category) : ""}
+                      faceParams={faceParams}
+                      adjustmentScale={clothingAdj.scale}
+                      adjustmentX={clothingAdj.x}
+                      adjustmentY={clothingAdj.y}
+                      adjustmentZ={clothingAdj.z}
+                    />
                   </div>
+
+                  {activeTab === 'preview' && (
+                    <div className="preview-info" style={{ padding: '20px', background: '#fff', borderTop: '1px solid #ddd' }}>
+                      <h3>Your Virtual Outfit</h3>
+                      <div className="outfit-details" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                        {selectedProducts.map(product => (
+                          <div key={product.id} className="outfit-item" style={{ background: '#f1f3f5', padding: '5px 12px', borderRadius: '15px', fontSize: '0.9rem' }}>
+                            {product.name} - ${product.price}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="preview-actions">
+                        <button className="action-btn primary">🛒 Add All to Cart</button>
+                        <button className="action-btn secondary">📷 Screenshot</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

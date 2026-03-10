@@ -57,6 +57,11 @@ const CustomerDashboard = ({ user, onLogout }) => {
 
   const [activeTab, setActiveTab] = useState(location.state?.activeTab || "home");
   const [avatarPhoto, setAvatarPhoto] = useState(null);
+  const [faceParams, setFaceParams] = useState(() => {
+    const saved = localStorage.getItem("faceParams");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [isFaceLoading, setIsFaceLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
@@ -206,6 +211,34 @@ const CustomerDashboard = ({ user, onLogout }) => {
   const handleLogout = () => {
     onLogout();
     navigate("/");
+  };
+
+  const handleFaceUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsFaceLoading(true);
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    try {
+      const response = await axios.post("http://localhost:5000/api/avatar/face-from-photo", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      if (response.data.success) {
+        setFaceParams(response.data.faceParams);
+        localStorage.setItem("faceParams", JSON.stringify(response.data.faceParams));
+        toast.success("✅ 3D Face Generated! Your avatar has been updated.");
+      } else {
+        toast.error("❌ Error: " + (response.data.message || "Face analysis failed"));
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("❌ Upload Failed: " + error.message);
+    } finally {
+      setIsFaceLoading(false);
+    }
   };
 
   const handlePhotoUpload = (e) => {
@@ -811,16 +844,13 @@ const CustomerDashboard = ({ user, onLogout }) => {
                       <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Upload Face Photo (Selfie)</label>
                       <input
                         type="file"
+                        id="avatar-face-upload"
                         accept="image/*"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            // You can save this file to state or upload it to generate a detailed 3D mesh later
-                            console.log("Uploaded Face Photo:", e.target.files[0]);
-                            alert("Face photo selected! A 3D Face would be generated from this.");
-                          }
-                        }}
-                        style={{ fontSize: "0.8rem" }}
+                        onChange={handleFaceUpload}
+                        disabled={isFaceLoading}
+                        style={{ fontSize: "0.8rem", width: "100%" }}
                       />
+                      {isFaceLoading && <small style={{ color: "#e91e63" }}>Processing Face AI...</small>}
                     </div>
 
                     {["chest", "waist", "hips", "thigh", "shoulders"].map((m) => {
@@ -922,6 +952,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                         }}
                         modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
                         clothingModelUrl={selectedClothing}
+                        faceParams={faceParams}
                       />
                     </div>
                   </div>

@@ -62,6 +62,23 @@ router.post('/face-from-photo', upload.single('photo'), async (req, res) => {
 
         if (code !== 0) {
             console.error('Python Error:', errorString);
+
+            // FALLBACK FOR DEVELOPMENT: If python fails (e.g. not installed), return dummy data
+            if (process.env.NODE_ENV === 'development') {
+                console.log('⚠️ Falling back to dummy face params because Python execution failed.');
+                return res.json({
+                    success: true,
+                    faceParams: {
+                        faceWidth: 0.5,
+                        jawWidth: 0.5,
+                        noseWidth: 0.5,
+                        eyeSize: 0.5,
+                        chinHeight: 0.5
+                    },
+                    message: "Simulation active (Python script could not run)"
+                });
+            }
+
             return res.status(500).json({
                 message: 'Face analysis failed',
                 error: errorString

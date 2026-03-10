@@ -223,6 +223,33 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
     }
   };
 
+  const handleSettingChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setStoreSettings(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const saveSettings = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(storeSettings)
+      });
+      const data = await response.json();
+      if (data) {
+        alert("✅ Store settings updated successfully!");
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      alert("❌ Failed to update settings");
+    }
+  };
+
   const handleLogout = () => {
     onLogout(); // Call parent logout function
     navigate('/');
@@ -298,7 +325,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
           {activeTab === 'overview' && (
             <div className="overview-tab">
               <h2>Dashboard Overview</h2>
-              
+
               {/* Stats Grid */}
               <div className="stats-grid">
                 <div className="stat-card">

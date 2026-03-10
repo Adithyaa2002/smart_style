@@ -1,0 +1,97 @@
+.maintenance-container {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    font-family: 'Inter', system-ui, sans-serif;
+    text-align: center;
+    padding: 20px;
+}
+
+.maintenance-content {
+    max-width: 500px;
+    background: white;
+    padding: 40px;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+}
+
+.maintenance-icon {
+    font-size: 4rem;
+    margin-bottom: 24px;
+    animation: rotate 4s linear infinite;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.maintenance-content h1 {
+    font-size: 1.75rem;
+    color: #1a1a1a;
+    margin-bottom: 16px;
+}
+
+.maintenance-content p {
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 32px;
+}
+
+.maintenance-footer {
+    border-top: 1px solid #f0f0f0;
+    padding-top: 24px;
+}
+
+.maintenance-footer span {
+    font-size: 0.875rem;
+    color: #888;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.progress-bar {
+    height: 6px;
+    background: #eee;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 60%;
+    background: #000;
+    border-radius: 3px;
+    animation: shimmer 2s infinite linear;
+}
+
+.admin-login-link {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 0.8rem;
+    color: #888;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.admin-login-link:hover {
+    color: #1a1a1a;
+    text-decoration: underline;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(200%);
+    }
+}

@@ -22,6 +22,9 @@ const ProductDetails = () => {
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [relatedProducts, setRelatedProducts] = useState([]); // New State
 
+    // CLOTHING ADJUSTMENT STATE
+    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: 0, z: 0 });
+
     // --- Review State & Handler ---
     const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
 
@@ -56,6 +59,11 @@ const ProductDetails = () => {
             return JSON.parse(saved);
         }
         return { chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female" };
+    });
+
+    const [faceParams, setFaceParams] = useState(() => {
+        const saved = localStorage.getItem("faceParams");
+        return saved ? JSON.parse(saved) : null;
     });
 
     useEffect(() => {
@@ -110,9 +118,42 @@ const ProductDetails = () => {
                                     gender: measurements.gender
                                 }}
                                 clothingModelUrl={product.model3D ? (product.model3D.startsWith('http') ? product.model3D : `http://localhost:5000${product.model3D}`) : null}
+                                category={product.category}
                                 modelUrl={measurements.gender === 'male' ? "/models/male_base.glb" : "/models/female_base.glb"}
+                                adjustmentScale={clothingAdj.scale}
+                                adjustmentY={clothingAdj.y}
+                                adjustmentZ={clothingAdj.z}
+                                faceParams={faceParams}
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
+
+                            {/* ADJUSTMENT SLIDERS */}
+                            <div className="clothing-fixes-overlay" style={{
+                                position: 'absolute', bottom: '10px', left: '10px', right: '10px',
+                                background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px',
+                                zIndex: 120, fontSize: '0.8rem'
+                            }}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '5px' }}>
+                                    <label>Size:</label>
+                                    <input type="range" min="0.5" max="5.0" step="0.1" value={clothingAdj.scale}
+                                        onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
+                                        style={{ flex: 1 }} />
+                                    <span>{clothingAdj.scale.toFixed(1)}x</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    <label>Up/Down:</label>
+                                    <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.y}
+                                        onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
+                                        style={{ flex: 1 }} />
+                                    <span>{clothingAdj.y.toFixed(2)}</span>
+                                </div>
+                                <button
+                                    onClick={() => setClothingAdj({ scale: 1.0, y: 0, z: 0 })}
+                                    style={{ width: '100%', marginTop: '5px', fontSize: '10px' }}
+                                >
+                                    Reset Fixes
+                                </button>
+                            </div>
                             <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
                         </div >
                     ) : (

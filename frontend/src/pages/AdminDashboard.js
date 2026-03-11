@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
@@ -240,13 +241,14 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
         },
         body: JSON.stringify(storeSettings)
       });
-      const data = await response.json();
-      if (data) {
+      if (response.ok) {
         alert("✅ Store settings updated successfully!");
+      } else {
+        alert("❌ Failed to update settings");
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
-      alert("❌ Failed to update settings");
+      alert("❌ Error saving settings");
     }
   };
 

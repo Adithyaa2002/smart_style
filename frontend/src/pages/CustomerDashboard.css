@@ -430,6 +430,20 @@ body {
   font-weight: 600;
 }
 
+.sidebar-tab.combination-active {
+  background: linear-gradient(45deg, #e91e63, #ff4081);
+  color: white !important;
+  font-weight: bold;
+  margin-top: 15px;
+  box-shadow: 0 4px 10px rgba(233, 30, 99, 0.3);
+  border-radius: 8px;
+}
+
+.sidebar-tab.combination-active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(233, 30, 99, 0.4);
+}
+
 .profile-section input,
 .profile-section select {
   margin: 8px 0;

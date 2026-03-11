@@ -1,10 +1,20 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AvatarViewer from '../components/AvatarViewer';
 
 const VirtualTryOn = () => {
   const navigate = useNavigate();
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState(() => {
+    const saved = localStorage.getItem('combinationTryOnProducts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Sync selected products to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('combinationTryOnProducts', JSON.stringify(selectedProducts));
+  }, [selectedProducts]);
+
   const [outfitHistory, setOutfitHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('browse');
@@ -133,9 +143,34 @@ const VirtualTryOn = () => {
   ];
 
   const addToTryOn = (product) => {
-    // Remove existing item of same type
-    const filtered = selectedProducts.filter(item => item.type !== product.type);
-    setSelectedProducts([...filtered, product]);
+    // Canonical category mapping for replacement logic
+    const getCanonicalType = (p) => {
+      const cat = (p.type || p.category || "").toLowerCase();
+      if (cat.includes("top") || cat.includes("shirt") || cat.includes("jacket") || cat.includes("tshirt") || cat.includes("upper")) return "top";
+      if (cat.includes("pant") || cat.includes("trouser") || cat.includes("bottom") || cat.includes("short") || cat.includes("jeans") || cat.includes("lower")) return "bottom";
+      if (cat.includes("dress") || cat.includes("suit") || cat.includes("outfit") || cat.includes("frock") || cat.includes("gown")) return "full";
+      if (cat.includes("shoe") || cat.includes("foot")) return "shoes";
+      return cat; // fallback
+    };
+
+    const newType = getCanonicalType(product);
+
+    // Remove existing item of same canonical type
+    const filtered = selectedProducts.filter(item => getCanonicalType(item) !== newType);
+
+    // If it's a "full" outfit, it should ideally replace both tops AND bottoms
+    let finalFiltered = filtered;
+    if (newType === "full") {
+      finalFiltered = filtered.filter(item => {
+        const t = getCanonicalType(item);
+        return t !== "top" && t !== "bottom";
+      });
+    } else if (newType === "top" || newType === "bottom") {
+      // If adding a top or bottom, remove any "full" outfit
+      finalFiltered = filtered.filter(item => getCanonicalType(item) !== "full");
+    }
+
+    setSelectedProducts([...finalFiltered, { ...product, id: product._id || product.id }]);
   };
 
   const removeFromTryOn = (productId) => {
@@ -177,7 +212,7 @@ const VirtualTryOn = () => {
     <div className="virtual-tryon-container">
       {/* Header */}
       <div className="tryon-header">
-        <button className="back-btn" onClick={() => navigate('/dashboard')}>
+        <button className="back-btn" onClick={() => navigate('/customer-dashboard')}>
           ← Back to Dashboard
         </button>
         <h1>🎯 SmartStyle Virtual Try-On</h1>
@@ -511,14 +546,7 @@ const VirtualTryOn = () => {
                     <AvatarViewer
                       measurements={measurements}
                       modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
-                      clothingModelUrl={
-                        selectedProducts.length > 0
-                          ? (selectedProducts[selectedProducts.length - 1].model3D?.startsWith('http')
-                            ? selectedProducts[selectedProducts.length - 1].model3D
-                            : `http://localhost:5000${selectedProducts[selectedProducts.length - 1].model3D}`)
-                          : null
-                      }
-                      category={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].type || selectedProducts[selectedProducts.length - 1].category) : ""}
+                      selectedItems={selectedProducts}
                       faceParams={faceParams}
                       adjustmentScale={clothingAdj.scale}
                       adjustmentX={clothingAdj.x}

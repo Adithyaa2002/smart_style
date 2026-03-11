@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useGLTF, Environment, ContactShadows, Html } from "@react-three/drei";
+import { OrbitControls, useGLTF, ContactShadows, Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 function clamp01(val) {
@@ -78,8 +78,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
 
   const bones = React.useRef({});
 
-  // Debug throttling
-  const lastLog = React.useRef(0);
+
 
   // Move scaling to useFrame to ensure it overrides any animations every frame
   useFrame((state) => {
@@ -87,13 +86,6 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
 
     // Use Ref to prevent closure staleness
     const currentMeas = measurementsRef.current;
-
-    // Default Measurements
-    const standardChest = 34;
-    const standardWaist = 28;
-    const standardHips = 38;
-    // Standard Weight ~ 60kg.
-    const standardWeight = 60;
 
 
     // --- MEASUREMENT LOGIC ---
@@ -370,6 +362,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
         setKey("measure-bust-circ-incr", chestWeight);      // Chest/Bust
         setKey("measure-waist-circ-incr", waistWeight);     // Waist
         setKey("measure-hips-circ-incr", hipWeight);        // Hips
+        setKey("hip-scale-horiz-incr", hipWeight);          // Alternative Hips keyword
         setKey("measure-thigh-circ-incr", thighWeight);     // Thigh
         setKey("measure-calf-circ-incr", calfWeight);       // Calf (New)
         setKey("measure-knee-circ-incr", thighWeight * 0.5);// Knee (New - smoothed)
@@ -387,16 +380,20 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
 
       // --- DIAGNOSTICS & MATERIAL APPLICATION ---
       if (child.isMesh || child.isSkinnedMesh) {
+        // FIX: Prevent tearing when rotating
+        child.frustumCulled = false;
+
         const name = (child.name || "").toLowerCase();
 
-        // 1. Identifying Parts (More robust keywords)
+        // 1. Identifying Parts (Comprehensive keywords)
         const skinKeywords = ["body", "skin", "head", "face", "arm", "flesh", "hand", "leg", "surface", "human", "avatar", "base", "torso", "neck", "legs", "foot", "feet", "chest"];
         const otherBodyKeywords = ["eye", "teeth", "tongue", "lash", "hair", "cornea", "nail"];
         const clothingKeywords = [
           "bra", "pants", "shirt", "dress", "outfit", "garment", "punkduck", "undies",
           "briefs", "underwear", "boxers", "camisole", "slip", "trunks", "suit", "cloth",
-          "trousers", "shorts", "jean", "top", "bottom", "vest", "jacket"
-        ]; // Added back common clothing types
+          "trousers", "shorts", "jean", "top", "bottom", "vest", "jacket", "under", "bikini",
+          "sport", "jeans", "001", "tube", "denim", "skirt", "tank", "tops", "bottoms"
+        ];
 
         // Refined Logic: If it's on a base-skin list, it's skin. 
         // If it's a known clothing item, it's clothing.
@@ -433,38 +430,47 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
           }
         }
 
-        // 4. Clothing Priority
+        // 4. Clothing Priority & Anti-Clipping
         if (finalClothing && child.material && !finalSkin) {
           child.material.side = THREE.DoubleSide;
           child.material.depthWrite = true;
           child.material.transparent = false;
           child.material.polygonOffset = true;
-          child.material.polygonOffsetFactor = -4.0;
-          child.material.polygonOffsetUnits = -4.0;
+          // Pushes it strongly to the foreground
+          child.material.polygonOffsetFactor = -2.0;
+          child.material.polygonOffsetUnits = -2.0;
         }
 
         // 5. Selective Base Clothing Hiding (Selective Visibility)
         const lowTryOn = tryOnCategory.toLowerCase();
-        const isTopBase = name.includes("bra") || name.includes("camisole") || name.includes("sport") || name.includes("top");
-        const isBottomBase = name.includes("pant") || name.includes("shorts") || name.includes("undies") || name.includes("briefs") || name.includes("underwear") || name.includes("trunks");
+
+        // Define what constitutes "Full Outfit" base layers
+        const isFullBase = name.includes("dress") || name.includes("frock") || name.includes("suit") || name.includes("outfit") || name.includes("gown") || name.includes("overalls");
+        // Define what constitutes "Top" base layers
+        const isTopBase = name.includes("bra") || name.includes("camisole") || name.includes("sport") || name.includes("top") || name.includes("upper") || name.includes("shirt") || name.includes("vest") || name.includes("tank");
+        // Define what constitutes "Bottom" base layers
+        const isBottomBase = name.includes("pant") || name.includes("shorts") || name.includes("undies") || name.includes("briefs") || name.includes("underwear") || name.includes("trunks") || name.includes("bottom") || name.includes("lower") || name.includes("leg") || name.includes("trousers") || name.includes("jeans");
 
         let hideThisMesh = false;
         if (lowTryOn) {
-          const isTryingTop = lowTryOn.includes("top") || lowTryOn.includes("shirt") || lowTryOn.includes("jacket") || lowTryOn.includes("tshirt");
-          const isTryingBottom = lowTryOn.includes("pant") || lowTryOn.includes("trouser") || lowTryOn.includes("bottom") || lowTryOn.includes("short");
-          const isTryingFull = lowTryOn.includes("dress") || lowTryOn.includes("suit") || lowTryOn.includes("outfit") || lowTryOn.includes("frock") || lowTryOn.includes("gown");
+          const isTryingTop = lowTryOn.includes("top") || lowTryOn.includes("shirt") || lowTryOn.includes("jacket") || lowTryOn.includes("tshirt") || lowTryOn.includes("upper") || lowTryOn.includes("vest");
+          const isTryingBottom = lowTryOn.includes("pant") || lowTryOn.includes("trouser") || lowTryOn.includes("bottom") || lowTryOn.includes("short") || lowTryOn.includes("jeans") || lowTryOn.includes("lower");
+          const isTryingFull = lowTryOn.includes("dress") || lowTryOn.includes("suit") || lowTryOn.includes("outfit") || lowTryOn.includes("frock") || lowTryOn.includes("gown") || lowTryOn.includes("full");
 
           if (isTryingFull) {
-            hideThisMesh = isClothing; // Hide all innerwear
-          } else if (isTryingTop) {
-            hideThisMesh = isTopBase; // Hide only top inner
-          } else if (isTryingBottom) {
-            hideThisMesh = isBottomBase; // Hide only bottom inner
+            hideThisMesh = isClothing; // Hide EVERYTHING that is clothing
+          } else {
+            // CRITICAL: If trying on ANY partial item, hide any base full-body garments
+            if (isFullBase) hideThisMesh = true;
+
+            if (isTryingTop && (isTopBase)) hideThisMesh = true;
+            if (isTryingBottom && (isBottomBase)) hideThisMesh = true;
           }
         }
 
         if (hideThisMesh) child.visible = false;
-        else child.visible = true;
+        else if (isClothing) child.visible = true;
+
       }
     });
 
@@ -586,42 +592,53 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
       onSceneDebug(foundSkeleton ? "SKELETON FOUND!\n" + dump : "NO SKELETON FOUND.\n" + dump);
     }
 
-  }, [scene, onSkeletonLoaded]);
+  }, [scene, onSkeletonLoaded, onSceneDebug]);
 
   return <primitive object={scene} position={[0, 0, 0]} rotation={[0, 0, 0]} />;
 }
 
 // -----------------------------------------------------
-// Clothing Model Component (Synced Logic)
+// Clothing Model Component (Synced Logic + Universal Registration)
 // -----------------------------------------------------
-const ClothingModel = React.memo(({ url, avatarSkeleton, measurements, category = "",
+const ClothingModel = React.memo(({
+  url,
+  category,
+  avatarSkeleton,
+  avatarMeasurements,
+  dressMeasurements,
+  selectedSize,
   isFixedSize = false,
   adjustmentScale = 1.0,
   adjustmentX = 0,
   adjustmentY = 0,
   adjustmentZ = 0,
-  isMale = true,
-  onScaleCalculated // New diagnostic callback
+  isMale = false,
+  onScaleCalculated
 }) => {
   const { scene } = useGLTF(url);
 
-  // Standardized to 1.0 to match avatar
-  const BASE_SCALE = 1.0;
+  // Refs to avoid stale closures in useFrame
+  const avatarMeasRef = React.useRef(avatarMeasurements);
+  const dressMeasRef = React.useRef(dressMeasurements);
+  const sizeRef = React.useRef(selectedSize);
+  const adjScaleRef = React.useRef(adjustmentScale);
+  const adjXRef = React.useRef(adjustmentX);
+  const adjYRef = React.useRef(adjustmentY);
+  const adjZRef = React.useRef(adjustmentZ);
 
-  const groupRef = React.useRef();
-  const measurementsRef = React.useRef(measurements);
   const adjRef = React.useRef({ scale: adjustmentScale, x: adjustmentX, y: adjustmentY, z: adjustmentZ });
 
-  useEffect(() => {
-    measurementsRef.current = measurements;
-  }, [measurements]);
+  avatarMeasRef.current = avatarMeasurements;
+  dressMeasRef.current = dressMeasurements;
+  sizeRef.current = selectedSize;
+  adjScaleRef.current = adjustmentScale;
+  adjXRef.current = adjustmentX;
+  adjYRef.current = adjustmentY;
+  adjZRef.current = adjustmentZ;
+  adjRef.current = { scale: adjustmentScale, x: adjustmentX, y: adjustmentY, z: adjustmentZ };
 
-  useEffect(() => {
-    adjRef.current = { scale: adjustmentScale, x: adjustmentX, y: adjustmentY, z: adjustmentZ };
-  }, [adjustmentScale, adjustmentX, adjustmentY, adjustmentZ]);
-
-  const [autoScale, setAutoScale] = React.useState(1.0);
-  const [isInitialized, setIsInitialized] = React.useState(false); // New: Hide until positioned
+  const [autoScale, setAutoScale] = useState(1.0);
+  const [isInitialized, setIsInitialized] = useState(false); // New: Hide until positioned
 
   useEffect(() => {
     if (scene) {
@@ -693,18 +710,54 @@ const ClothingModel = React.memo(({ url, avatarSkeleton, measurements, category 
   useEffect(() => {
     if (!scene || !avatarSkeleton) return;
 
+    // A. Neutralize Unit Differences (Fixes Huge vs Tiny vs Floating GLBs)
+    // We measure the GLB and normalize it to a 'Physical Human' height standard.
+    if (!scene.userData.syncScale) {
+      const box = new THREE.Box3().setFromObject(scene);
+      const h = box.max.y - box.min.y;
+      if (h > 0.01) {
+        const cat = (category || "").toLowerCase();
+        const isFull = ["dress", "gown", "outfit"].some(k => cat.includes(k));
+        const isBottom = ["pant", "jeans", "bottom", "skirt", "shorts"].some(k => cat.includes(k));
+
+        // SLIM HUMAN TARGETS (Small Profile)
+        let targetHeight = isFull ? 1.35 : (isBottom ? 1.00 : 0.72);
+        scene.userData.syncScale = targetHeight / h;
+
+        // Store the GEOMETRIC CENTER (Ground Truth for non-standard models)
+        scene.userData.geoCenter = new THREE.Vector3();
+        box.getCenter(scene.userData.geoCenter);
+        // Normalize the center relative to the origin for frame-by-frame snap
+        scene.userData.geoCenter.y -= box.min.y;
+      }
+    }
+
+    // FORCE internal matrices to update so 'bind' captures the correct initial world state
+    scene.updateMatrixWorld(true);
+    avatarSkeleton.bones[0].updateMatrixWorld(true);
+
     scene.traverse((child) => {
       // Material Settings
-      if (child.isMesh) {
-        child.renderOrder = 100; // Force on top
+      if (child.isMesh || child.isSkinnedMesh) {
+        child.frustumCulled = false;
+        child.renderOrder = 100;
         child.material.side = THREE.DoubleSide;
+        child.material.transparent = false;
+        child.material.alphaTest = 0.5;
         child.material.depthWrite = true;
         child.material.polygonOffset = true;
-        child.material.polygonOffsetFactor = -2.0; // Reduced offset slightly
-        child.userData.hasInflated = true; // Prevent internal double-scaling
+        child.material.polygonOffsetFactor = -10.0; // Pushes garment strongly in front
+
+        if (!child.userData.hasInflated) {
+          // Mesh inflation removed for 'Small' fit
+          child.userData.hasInflated = true;
+        }
 
         // Sync Skeleton
-        if (child.isSkinnedMesh && child.skeleton) {
+        if (child.isSkinnedMesh) {
+          // ENSURE avatar is in a neutral pose for the bind capture
+          avatarSkeleton.pose();
+
           const originalBones = child.skeleton.bones;
           const newBones = [];
 
@@ -729,107 +782,111 @@ const ClothingModel = React.memo(({ url, avatarSkeleton, measurements, category 
             "rightupleg": ["mixamorig:rightupleg", "rightupleg", "rightthigh", "thigh_r", "thigh.r", "r_thigh", "c_pos_thigh_r"],
             "rightleg": ["mixamorig:rightleg", "rightleg", "rightcalf", "calf_r", "shin_r", "r_calf", "c_pos_calf_r"],
             "rightfoot": ["mixamorig:rightfoot", "rightfoot", "foot_r", "foot.r", "r_foot", "foot_01_r", "c_pos_foot_r"],
-            "lefttoe": ["mixamorig:lefttoebase", "lefttoe", "toe_l", "toe.l", "l_toe", "c_pos_toe_l"],
-            "righttoe": ["mixamorig:righttoebase", "righttoe", "toe_r", "toe.r", "r_toe", "c_pos_toe_r"],
-            "leftthumb1": ["mixamorig:leftthumb1", "thumb_l_01", "c_pos_thumb_l_01"],
-            "leftthumb2": ["mixamorig:leftthumb2", "thumb_l_02", "c_pos_thumb_l_02"],
-            "leftthumb3": ["mixamorig:leftthumb3", "thumb_l_03", "c_pos_thumb_l_03"],
-            "leftindex1": ["mixamorig:leftindex1", "index_l_01", "c_pos_index_l_01"],
-            "leftindex2": ["mixamorig:leftindex2", "index_l_02", "c_pos_index_l_02"],
-            "leftindex3": ["mixamorig:leftindex3", "index_l_03", "c_pos_index_l_03"],
-            "leftmiddle1": ["mixamorig:leftmiddle1", "middle_l_01", "c_pos_middle_l_01"],
-            "leftmiddle2": ["mixamorig:leftmiddle2", "middle_l_02", "c_pos_middle_l_02"],
-            "leftmiddle3": ["mixamorig:leftmiddle3", "middle_l_03", "c_pos_middle_l_03"],
-            "leftring1": ["mixamorig:leftring1", "ring_l_01", "c_pos_ring_l_01"],
-            "leftring2": ["mixamorig:leftring2", "ring_l_02", "c_pos_ring_l_02"],
-            "leftring3": ["mixamorig:leftring3", "ring_l_03", "c_pos_ring_l_03"],
-            "leftpinky1": ["mixamorig:leftpinky1", "pinky_l_01", "c_pos_pinky_l_01"],
-            "leftpinky2": ["mixamorig:leftpinky2", "pinky_l_02", "c_pos_pinky_l_02"],
-            "leftpinky3": ["mixamorig:leftpinky3", "pinky_l_03", "c_pos_pinky_l_03"],
-            "rightthumb1": ["mixamorig:rightthumb1", "thumb_r_01", "c_pos_thumb_r_01"],
-            "rightthumb2": ["mixamorig:rightthumb2", "thumb_r_02", "c_pos_thumb_r_02"],
-            "rightthumb3": ["mixamorig:rightthumb3", "thumb_r_03", "c_pos_thumb_r_03"],
-            "rightindex1": ["mixamorig:rightindex1", "index_r_01", "c_pos_index_r_01"],
-            "rightindex2": ["mixamorig:rightindex2", "index_r_02", "c_pos_index_r_02"],
-            "rightindex3": ["mixamorig:rightindex3", "index_r_03", "c_pos_index_r_03"],
-            "rightmiddle1": ["mixamorig:rightmiddle1", "middle_r_01", "c_pos_middle_r_01"],
-            "rightmiddle2": ["mixamorig:rightmiddle2", "middle_r_02", "c_pos_middle_r_02"],
-            "rightmiddle3": ["mixamorig:rightmiddle3", "middle_r_03", "c_pos_middle_r_03"],
-            "rightring1": ["mixamorig:rightring1", "ring_r_01", "c_pos_ring_r_01"],
-            "rightring2": ["mixamorig:rightring2", "ring_r_02", "c_pos_ring_r_02"],
-            "rightring3": ["mixamorig:rightring3", "ring_r_03", "c_pos_ring_r_03"],
-            "rightpinky1": ["mixamorig:rightpinky1", "pinky_r_01", "c_pos_pinky_r_01"],
-            "rightpinky2": ["mixamorig:rightpinky2", "pinky_r_02", "c_pos_pinky_r_02"],
-            "rightpinky3": ["mixamorig:rightpinky3", "pinky_r_03", "c_pos_pinky_r_03"],
           };
 
+          const boneCache = new Map();
           originalBones.forEach(sourceBone => {
-            const sName = sourceBone.name.toLowerCase().replace(/_/g, "");
-            let targetBone = null;
-            let detectedType = null;
+            const sName = sourceBone.name.toLowerCase().replace(/_|:/g, "");
+            if (boneCache.has(sName)) { newBones.push(boneCache.get(sName)); return; }
+
+            let foundTarget = null;
             for (const [type, aliases] of Object.entries(BONE_MAPPING)) {
-              if (aliases.some(alias => sName.includes(alias.replace(/_|:/g, "")))) {
-                detectedType = type;
-                break;
+              if (aliases.some(alias => sName.includes(alias.replace(/_|:/g, "").toLowerCase()))) {
+                foundTarget = avatarSkeleton.bones.find(b => {
+                  const tName = b.name.toLowerCase().replace(/mixamorig|:|obj/g, "");
+                  return BONE_MAPPING[type].some(a => tName.includes(a.replace(/mixamorig|:|obj/g, "").toLowerCase()));
+                });
+                if (foundTarget) break;
               }
             }
-            if (detectedType) {
-              const targetAliases = BONE_MAPPING[detectedType];
-              targetBone = avatarSkeleton.bones.find(b => {
-                const tName = b.name.toLowerCase().replace(/mixamorig|:|obj/g, "");
-                return targetAliases.some(alias => tName.includes(alias.replace(/mixamorig|:|obj/g, "")));
-              });
-            }
-            if (!targetBone) {
-              targetBone = avatarSkeleton.bones.find(b => {
+
+            if (!foundTarget) {
+              foundTarget = avatarSkeleton.bones.find(b => {
                 const tName = b.name.toLowerCase().replace(/mixamorig|:|obj/g, "");
                 return sName.includes(tName) || tName.includes(sName);
               });
             }
-            newBones.push(targetBone || avatarSkeleton.bones[0]);
+
+            if (foundTarget) {
+              boneCache.set(sName, foundTarget);
+              newBones.push(foundTarget);
+            } else {
+              const fallback = avatarSkeleton.bones.find(b => b.name.toLowerCase().includes("hips")) || avatarSkeleton.bones[0];
+              newBones.push(fallback);
+            }
           });
-          child.skeleton = new THREE.Skeleton(newBones);
+
+          // Bind with identity to ensure it follows the avatar bones precisely
+          child.bind(new THREE.Skeleton(newBones), new THREE.Matrix4());
+          child.material.polygonOffset = true;
+          child.material.polygonOffsetFactor = -5.0; // Individual item priority
+          child.material.polygonOffsetUnits = -5.0;
         }
       }
     });
-  }, [scene, avatarSkeleton]);
+  }, [scene, avatarSkeleton, category]);
+
+  const groupRef = React.useRef();
 
   // Sync Morph Targets & Global Scale
   useFrame(() => {
-    if (!groupRef.current || !scene || !avatarSkeleton) return;
-    const meas = measurementsRef.current;
+    if (!scene || !groupRef.current || !avatarSkeleton) return;
 
-    // Auto-detect Vertical Offset based on Category & Gender
-    const lowCat = (category || url || "").toLowerCase();
-    const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper");
-    const isBottom = lowCat.includes("pant") || lowCat.includes("trouser") || lowCat.includes("bottom") || lowCat.includes("short") || lowCat.includes("jeans") || lowCat.includes("lower");
-    const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("full") || lowCat.includes("suit");
+    // Ensure all world positions are fresh before calculating deltas
+    avatarSkeleton.bones[0].updateMatrixWorld(true);
+    scene.updateMatrixWorld(true);
 
-    let baseAutoY = 1.05; // Default for Male Tops
-    let baseAutoX = isMale ? -0.01 : 0.0; // Reduced left nudge
-
-    if (isFull) {
-      baseAutoY = isMale ? 0.85 : 0.14; // Isolate Male vs Female FullBody
-    } else if (isBottom) {
-      baseAutoY = isMale ? 0.45 : 0.38;
-    } else if (isTop) {
-      baseAutoY = isMale ? -0.11 : -0.01; // Final precision user-found height
-    }
-
-    // 1. GLOBAL & ADJUSTMENT SCALE
+    const currentDressMeas = dressMeasRef.current;
     const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
 
-    const g = groupRef.current;
+    // 1. ANATOMICAL REGISTRY (Neckline Lock)
+    const syncMult = scene.userData.syncScale || 1.0;
+    const sizeScaleMult = (Number(currentDressMeas?.chest) || 36) / 36;
 
-    // Cross-gender/Body-type Depth Boost
-    // - Women (Tops): 1.22x depth for bust. (Dresses balanced at 0.97x for back fit vs clipping)
-    // - Men (Tops/Full): 1.05-1.15x depth
+    // CATEGORY DETECTION
+    const lowCat = (category || url || "").toLowerCase();
+    const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
+    const isBottom = lowCat.includes("pant") || lowCat.includes("trouser") || lowCat.includes("bottom") || lowCat.includes("short") || lowCat.includes("jeans") || lowCat.includes("lower");
+    const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
+
+    // SLIM FIT CALIBRATION: Tailored volume
     const zBoost = isTop ? (isMale ? 1.05 : 1.22) : (isFull ? (isMale ? 1.15 : 0.97) : 1.0);
-    const finalScale = BASE_SCALE * autoScale * (aScale || 1.0);
-    g.scale.set(finalScale, finalScale, finalScale * zBoost);
 
-    // Auto-snap to correct vertical level
-    g.position.set(baseAutoX + (aX || 0), baseAutoY + (aY || 0), (aZ || 0));
+    // APPLY SIZE SCALE MULTIPLIER (Vendor Size Chart Logic)
+    const finalScale = autoScale * sizeScaleMult * (aScale || 1.0);
+
+    groupRef.current.scale.set(finalScale, finalScale, finalScale * zBoost);
+
+    // LANDMARK REGISTRY: Find precise socket for Top-Down fit
+    const aAnchor = avatarSkeleton.bones.find(b => {
+      const n = b.name.toLowerCase();
+      return isBottom ? (n.includes("hips") || n.includes("pelvis")) : (n.includes("neck") || n.includes("spine2"));
+    });
+
+    let dAnchor = null;
+    scene.traverse(c => {
+      if (!dAnchor && c.isBone) {
+        const n = c.name.toLowerCase();
+        if (isBottom) {
+          if (n.includes("hips") || n.includes("pelvis")) dAnchor = c;
+        } else {
+          if (n.includes("neck") || n.includes("collar") || n.includes("shoulder")) dAnchor = c;
+        }
+      }
+    });
+
+    if (aAnchor) {
+      const v = new THREE.Vector3();
+      aAnchor.getWorldPosition(v);
+
+      // NO-OP position sync: If skeleton is correctly bound with Matrix4(),
+      // the mesh should follow bones automatically. 
+      // We only use the group position for manual adjustments (aX, aY, aZ).
+      groupRef.current.position.set(aX || 0, aY || 0, aZ || 0);
+      groupRef.current.rotation.set(0, 0, 0);
+    } else {
+      groupRef.current.position.set(aX || 0, (isMale ? 0.45 : 0.38) + (aY || 0), 0.002 + (aZ || 0));
+    }
 
     scene.traverse(child => {
       if (child.isSkinnedMesh && child.bindMode !== 'detached') {
@@ -840,23 +897,29 @@ const ClothingModel = React.memo(({ url, avatarSkeleton, measurements, category 
     // 2. MORPH TARGETS (1:1 Sync)
     const toInches = (val) => {
       const v = Number(val);
-      if (isNaN(v) || v === 0) return 0;
+      if (isNaN(v) || v === 0) return 36;
       if (v > 60) return v / 2.54;
       return v;
     };
 
     const getMorphWeight = (val, min, max) => {
       const v = toInches(val);
-      if (v === 0) return 0;
       let w = (v - min) / (max - min);
-      return Math.max(0, Math.min(2.0, w * 1.5));
+      return Math.max(0, Math.min(2.0, w * 1.7)); // Balanced sensitivity
     };
 
-    const chestW = getMorphWeight(meas?.chest, 28, 50);
-    const waistW = getMorphWeight(meas?.waist, 28, 50);
-    const hipsW = getMorphWeight(meas?.hips, 28, 48);
-    const thighW = getMorphWeight(meas?.thigh, 19, 25);
-    const shoulderW = getMorphWeight(meas?.shoulders, 13, 18);
+    // 2. MORPH TARGETS (1:1 Sync + Adaptive Looseness)
+    const currentAvatarMeas = avatarMeasRef.current;
+    const userChestRel = toInches(currentAvatarMeas?.chest);
+    const dressChestRel = Number(currentDressMeas?.chest) || userChestRel;
+    // 0.1 weight jump for every 10 inches of extra room (subtle but noticeable)
+    const loosenessBonus = Math.max(0, (dressChestRel - userChestRel) / 40);
+
+    const chestW = getMorphWeight(currentAvatarMeas?.chest, 28, 50);
+    const waistW = getMorphWeight(currentAvatarMeas?.waist, 28, 50);
+    const hipsW = getMorphWeight(currentAvatarMeas?.hips, 28, 48);
+    const thighW = getMorphWeight(currentAvatarMeas?.thigh, 19, 25);
+    const shoulderW = getMorphWeight(currentAvatarMeas?.shoulders, 13, 18);
     const calfW = thighW * 0.7;
 
     scene.traverse((child) => {
@@ -867,26 +930,46 @@ const ClothingModel = React.memo(({ url, avatarSkeleton, measurements, category 
           }
         };
 
-        // Apply buffer: 0.06 for men tops (tighter), 0.18 for female tops
-        const clothBuff = isFull ? (isMale ? 0.12 : 0.10) : (isTop ? (isMale ? 0.06 : 0.18) : 0.05);
-        setKey("measure-bust-circ-incr", chestW + clothBuff);
-        setKey("measure-bust-circ-incr.001", chestW + clothBuff);
-        setKey("measure-waist-circ-incr", waistW + clothBuff);
-        setKey("measure-hips-circ-incr", hipsW + clothBuff);
-        setKey("measure-thigh-circ-incr", thighW + clothBuff);
-        setKey("measure-calf-circ-incr", (thighW + clothBuff) * 0.7);
-        setKey("measure-knee-circ-incr", (thighW + clothBuff) * 0.5);
-        setKey("measure-shoulder-dist-incr", shoulderW + clothBuff);
-        setKey("measure-upperarm-circ-incr", (chestW + clothBuff) * 0.5);
-        setKey("breast-volume-vert-up", chestW + clothBuff);
-        setKey("BreastSize", chestW + clothBuff);
+        const baseBuff = isFull ? (isMale ? 0.12 : 0.10) : (isTop ? (isMale ? 0.05 : 0.15) : 0.04);
+        const totalBuff = baseBuff + loosenessBonus;
+
+        setKey("measure-bust-circ-incr", chestW + totalBuff);
+        setKey("measure-bust-circ-inc", chestW + totalBuff);
+        setKey("measure-waist-circ-incr", waistW + totalBuff);
+        setKey("measure-waist-circ-inc", waistW + totalBuff);
+        setKey("measure-hips-circ-incr", hipsW + totalBuff);
+        setKey("measure-hips-circ-inc", hipsW + totalBuff);
+        setKey("measure-thigh-circ-incr", thighW + totalBuff);
+        setKey("measure-thigh-circ-inc", thighW + totalBuff);
+        setKey("measure-shoulder-dist-incr", shoulderW + totalBuff);
+        setKey("measure-shoulder-dist-inc", shoulderW + totalBuff);
+        setKey("measure-calf-circ-incr", calfW + totalBuff);
+        setKey("measure-calf-circ-inc", calfW + totalBuff);
+        setKey("BreastSize", chestW + totalBuff);
+
+        // Secondary: If the model has explicit Size Keys (S, M, L, XL), apply them too
+        if (sizeRef.current) {
+          const lSize = sizeRef.current.toLowerCase();
+          for (const key in child.morphTargetDictionary) {
+            const lowerKey = key.toLowerCase();
+            const sizeList = ["s", "m", "l", "xl", "small", "medium", "large", "extralarge"];
+            if (sizeList.some(s => lowerKey.includes(s))) {
+              // Reset other sizes first if they are prominent
+              child.morphTargetInfluences[child.morphTargetDictionary[key]] = 0;
+              if (lSize === 's' && (lowerKey === 's' || lowerKey.includes('small'))) setKey(key, 1);
+              if (lSize === 'm' && (lowerKey === 'm' || lowerKey.includes('medium'))) setKey(key, 1);
+              if (lSize === 'l' && (lowerKey === 'l' || lowerKey.includes('large'))) setKey(key, 1);
+              if (lSize === 'xl' && (lowerKey === 'xl' || lowerKey.includes('extra'))) setKey(key, 1);
+            }
+          }
+        }
       }
     });
   });
 
   return (
     <group ref={groupRef} visible={isInitialized}>
-      <primitive object={scene} />
+      <primitive object={scene} rotation={[0, 0, 0]} />
     </group>
   );
 });
@@ -898,27 +981,90 @@ const LIGHT_POS = [5, 10, 5];
 export default function AvatarViewer({
   measurements,
   clothingModelUrl,
-  category = "", // Passed for auto-alignment
+  category,
   faceParams,
+  sizeChartData = null,
+  availableSizes = ['S', 'M', 'L', 'XL'],
+  initialSize = 'M',
   modelUrl = "/models/human_base.glb",
   adjustmentScale = 1.0,
   adjustmentX = 0,
   adjustmentY = 0,
-  adjustmentZ = 0
+  adjustmentZ = 0,
+  selectedItems = [] // NEW: Array of { model3D, category, id }
 }) {
-  const [avatarSkeleton, setAvatarSkeleton] = React.useState(null);
-  const [autoScaleFactor, setAutoScaleFactor] = React.useState(1.0); // Diagnostic state
+  const [avatarSkeleton, setAvatarSkeleton] = useState(null);
 
-  // Determine Gender for Layout/Logic (Strict check)
-  const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("/male_"));
+  const [localClothingUrl, setLocalClothingUrl] = useState(clothingModelUrl);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [sceneDump, setSceneDump] = useState("");
 
-  // Determine Category Flags in this scope for Diagnostic Overlay
-  const lowCat = (category || clothingModelUrl || "").toLowerCase();
-  const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
-  const isBottom = lowCat.includes("pant") || lowCat.includes("trouser") || lowCat.includes("bottom") || lowCat.includes("short") || lowCat.includes("jeans") || lowCat.includes("lower");
-  const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
+  useEffect(() => {
+    setLocalClothingUrl(clothingModelUrl);
+  }, [clothingModelUrl]);
 
-  // Persistence Fallback: If no faceParams passed, try to load from localStorage
+  // Merge categories for base clothing hiding
+  const activeCategories = useMemo(() => {
+    const cats = [];
+    if (localClothingUrl && category) cats.push(category);
+    if (selectedItems && selectedItems.length > 0) {
+      selectedItems.forEach(item => {
+        if (item.category || item.type) cats.push(item.category || item.type);
+      });
+    }
+    return cats.join(" ");
+  }, [localClothingUrl, category, selectedItems]);
+
+  const handleServerOptimization = async () => {
+    if (!localClothingUrl) return;
+    setIsOptimizing(true);
+    try {
+      const response = await fetch('http://localhost:5001/fit-clothing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clothingUrl: localClothingUrl,
+          measurements: measurements
+        })
+      });
+      const data = await response.json();
+      if (data.status === 'success' && data.processedUrl) {
+        setLocalClothingUrl(data.processedUrl);
+      } else {
+        alert("Optimization failed: " + (data.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Could not connect to optimization server. Is it running on port 5001?");
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  // --- NEW: CLOTHING SIZE LOGIC ---
+  const [selectedSize, setSelectedSize] = useState(initialSize || (availableSizes && availableSizes[0]) || 'M');
+
+  const SIZE_CHARTS = sizeChartData && Object.keys(sizeChartData).length > 0 ? sizeChartData : {
+    'S': { chest: 34, waist: 26, hips: 36, shoulders: 14, thigh: 20 },
+    'M': { chest: 36, waist: 28, hips: 38, shoulders: 15, thigh: 21 },
+    'L': { chest: 38, waist: 30, hips: 40, shoulders: 16, thigh: 22 },
+    'XL': { chest: 42, waist: 34, hips: 44, shoulders: 17, thigh: 24 }
+  };
+  const clothingMeasurements = SIZE_CHARTS[selectedSize] || Object.values(SIZE_CHARTS)[0];
+
+  const calculateFit = () => {
+    if (!measurements || !localClothingUrl || !clothingMeasurements || !clothingMeasurements.chest) return null;
+    const userChest = Number(measurements.chest) || 36;
+    const dressChest = Number(clothingMeasurements.chest);
+    const diff = dressChest - userChest;
+    if (diff < -1) return { text: `Too tight! (${Math.abs(diff)}" smaller)`, color: '#ff4444' };
+    if (diff > 1.5) return { text: `Too loose! (${diff}" larger)`, color: '#ffaa00' };
+    return { text: "Perfect Fit!", color: '#44ff44' };
+  };
+  const fitStatus = calculateFit();
+
+  const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("male"));
+
   const finalFaceParams = faceParams || (() => {
     try {
       const saved = localStorage.getItem("faceParams");
@@ -926,13 +1072,9 @@ export default function AvatarViewer({
     } catch (e) { return null; }
   })();
 
-
-
-  // Capture skeleton (backwards compat)
   const handleSkeletonLoaded = (skeleton) => {
     setAvatarSkeleton(skeleton);
   };
-
 
   const handleDownload = () => {
     const canvas = document.querySelector('canvas');
@@ -946,10 +1088,62 @@ export default function AvatarViewer({
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      {/* 3D Canvas */}
+      {/* Helper Toggle */}
+      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          style={{ padding: '5px 10px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
+        >
+          {showDebug ? "Hide Align Tools" : "Fix Alignment"}
+        </button>
+
+        {showDebug && (
+          <div style={{ background: 'rgba(0,0,0,0.8)', padding: '10px', borderRadius: '8px', color: 'white', width: '220px', boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+            <p>Use the sliders in Product Details to adjust the fit.</p>
+          </div>
+        )}
+      </div>
+
+      {/* SIZE SELECTOR & FIT STATUS */}
+      {localClothingUrl && (
+        <div style={{ position: "absolute", bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 110, display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+          {fitStatus && (
+            <div style={{ background: "rgba(0,0,0,0.7)", color: fitStatus.color, padding: "8px 16px", borderRadius: "20px", fontWeight: "bold", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+              {fitStatus.text}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "10px", background: "rgba(255,255,255,0.9)", padding: "10px 20px", borderRadius: "30px", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
+            <span style={{ fontWeight: "bold", alignSelf: "center", marginRight: "10px", color: '#333' }}>Select Size:</span>
+            {(availableSizes && availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL']).map(size => (
+              <button
+                key={size}
+                onClick={() => setSelectedSize(size)}
+                style={{
+                  width: "40px", height: "40px", borderRadius: "50%", border: "none",
+                  background: selectedSize === size ? "#2196F3" : "#e0e0e0",
+                  color: selectedSize === size ? "white" : "#333",
+                  fontWeight: "bold", cursor: "pointer", transition: "all 0.2s"
+                }}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showDebug && (
+        <div style={{
+          position: "absolute", top: 250, right: 10, width: "300px", height: "200px",
+          background: "rgba(0,0,0,0.8)", color: "#0f0", fontSize: "10px",
+          overflow: "auto", zIndex: 999, padding: "10px", whiteSpace: "pre-wrap"
+        }}>
+          {sceneDump}
+        </div>
+      )}
+
       <div style={{ width: "100%", height: "100%", borderRadius: "12px", overflow: "hidden" }}>
         <Canvas camera={{ position: CAMERA_POS, fov: 45 }} gl={{ preserveDrawingBuffer: true }}>
-          {/* <Environment preset="city" />  <-- Causing Download Error */}
           <ambientLight intensity={0.7} />
           <directionalLight intensity={1.2} position={LIGHT_POS} castShadow />
 
@@ -960,28 +1154,58 @@ export default function AvatarViewer({
                 measurements={measurements}
                 faceParams={finalFaceParams}
                 onSkeletonLoaded={handleSkeletonLoaded}
-                tryOnCategory={clothingModelUrl ? category : ""}
+                onSceneDebug={setSceneDump}
+                tryOnCategory={activeCategories}
+                hideBaseClothes={!!(localClothingUrl || (selectedItems && selectedItems.length > 0))}
               />
             </ModelErrorBoundary>
 
-            {clothingModelUrl && (
-              <ModelErrorBoundary key={clothingModelUrl}>
+            {/* SINGLE ITEM PREVIEW */}
+            {localClothingUrl && (
+              <ModelErrorBoundary key={localClothingUrl}>
                 <ClothingModel
-                  key={clothingModelUrl}
-                  url={clothingModelUrl}
+                  url={localClothingUrl}
                   category={category}
                   avatarSkeleton={avatarSkeleton}
-                  measurements={measurements}
+                  avatarMeasurements={measurements}
+                  dressMeasurements={clothingMeasurements}
+                  selectedSize={selectedSize}
                   isFixedSize={false}
                   adjustmentScale={adjustmentScale}
                   adjustmentX={adjustmentX}
                   adjustmentY={adjustmentY}
                   adjustmentZ={adjustmentZ}
                   isMale={isMale}
-                  onScaleCalculated={setAutoScaleFactor}
+                  onScaleCalculated={() => { }}
                 />
               </ModelErrorBoundary>
             )}
+
+            {/* COMBINATION PREVIEW */}
+            {selectedItems && selectedItems.length > 0 && selectedItems.map((item, idx) => {
+              const itemUrl = item.model3D?.startsWith('http') ? item.model3D : `http://localhost:5000${item.model3D}`;
+              if (!item.model3D) return null;
+
+              return (
+                <ModelErrorBoundary key={`${item.id || idx}-${itemUrl}`}>
+                  <ClothingModel
+                    url={itemUrl}
+                    category={item.category || item.type}
+                    avatarSkeleton={avatarSkeleton}
+                    avatarMeasurements={measurements}
+                    dressMeasurements={clothingMeasurements}
+                    selectedSize={selectedSize}
+                    isFixedSize={false}
+                    adjustmentScale={adjustmentScale}
+                    adjustmentX={adjustmentX}
+                    adjustmentY={adjustmentY}
+                    adjustmentZ={adjustmentZ}
+                    isMale={isMale}
+                    onScaleCalculated={() => { }} // No auto-scale feedback for multi-items yet
+                  />
+                </ModelErrorBoundary>
+              );
+            })}
           </React.Suspense>
 
           <OrbitControls
@@ -997,14 +1221,26 @@ export default function AvatarViewer({
             dampingFactor={0.05}
           />
           <ContactShadows opacity={0.6} scale={10} blur={2.5} far={4} resolution={256} color="#000000" />
-        </Canvas>
-      </div>
+        </Canvas >
+      </div >
 
-      {/* OVERLAYS AT THE BOTTOM OF JSX TO ENSURE THEY ARE ON TOP */}
       <div style={{
         position: "absolute", top: 20, right: 20, zIndex: 110,
         display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end"
       }}>
+        {localClothingUrl && (
+          <button
+            onClick={handleServerOptimization}
+            style={{
+              background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
+              padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
+              fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+            }}
+          >
+            {isOptimizing ? "⏳ Fitting..." : "✨ Perfect Fit"}
+          </button>
+        )}
         <button
           onClick={handleDownload}
           style={{
@@ -1016,19 +1252,6 @@ export default function AvatarViewer({
         >
           📸 Save Look
         </button>
-
-        {/* DIAGNOSTIC OVERLAY (Hidden for Production)
-        <div style={{
-          background: "rgba(0,0,0,0.8)", color: "#0f0", padding: "10px",
-          borderRadius: "8px", fontSize: "11px", fontFamily: "monospace",
-          border: "1px solid #333", pointerEvents: "none", textAlign: "right"
-        }}>
-          TYPE: {isFull ? "FullBody" : (isBottom ? "Bottom" : (isTop ? "Topwear" : "Unknown"))}<br />
-          BODY: {isMale ? "MALE" : "FEMALE"}<br />
-          AUTO: {autoScaleFactor.toFixed(3)}x<br />
-          ADJ: {adjustmentScale.toFixed(2)}x | X:{adjustmentX.toFixed(2)} | Y:{adjustmentY.toFixed(2)}
-        </div>
-        */}
       </div>
     </div>
   );

@@ -1,0 +1,6 @@
+--- 1770053640915-dress1.glb ---
+No morph targets found in file bytes.
+--- 1770056618072-dress1.glb ---
+No morph targets found in file bytes.
+--- 1772100805711-3final.glb ---
+No morph targets found in file bytes.

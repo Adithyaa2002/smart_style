@@ -1,8 +1,10 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import AvatarViewer from "../components/AvatarViewer";
+import ARViewer from "../components/ARViewer";
 import { toast } from "react-toastify";
 import "./ProductDetails.css"; // We will create this next
 import axios from "axios";
@@ -21,6 +23,8 @@ const ProductDetails = () => {
     const [overrideModel, setOverrideModel] = useState(null);
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [relatedProducts, setRelatedProducts] = useState([]); // New State
+    const [selectedSize, setSelectedSize] = useState(""); // Track user size choice
+    const [showAR, setShowAR] = useState(false); // New AR State
 
     // CLOTHING ADJUSTMENT STATE
     const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: 0, z: 0 });
@@ -124,6 +128,9 @@ const ProductDetails = () => {
                                 adjustmentY={clothingAdj.y}
                                 adjustmentZ={clothingAdj.z}
                                 faceParams={faceParams}
+                                sizeChartData={product.sizeChart}
+                                availableSizes={product.sizes}
+                                initialSize={selectedSize || (product.sizes && product.sizes[0])}
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
 
@@ -184,6 +191,40 @@ const ProductDetails = () => {
 
                     <p className="category">Category: <strong>{product.category}</strong></p>
 
+                    {/* VENDOR SIZE CHART DISPLAY */}
+                    {product.sizeChart && Object.keys(product.sizeChart).length > 0 && (
+                        <div className="size-chart-display" style={{ marginTop: '15px', marginBottom: '15px', background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #eee' }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '10px', fontSize: '1.1rem', color: '#333' }}>Product Size Chart</h3>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.9rem' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f0f0f0' }}>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Size</th>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Chest</th>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Waist</th>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Hips</th>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Thigh</th>
+                                            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Shoulders</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(product.sizeChart).map(([sizeName, measurements]) => (
+                                            <tr key={sizeName}>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd', fontWeight: 'bold' }}>{sizeName}</td>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{measurements.chest || '-'}</td>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{measurements.waist || '-'}</td>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{measurements.hips || '-'}</td>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{measurements.thigh || '-'}</td>
+                                                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{measurements.shoulders || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <small style={{ display: 'block', marginTop: '8px', color: '#666', fontStyle: 'italic' }}>* Measurements are in inches</small>
+                        </div>
+                    )}
+
                     <div className="action-buttons">
                         <button
                             className="buy-now-btn"
@@ -217,29 +258,119 @@ const ProductDetails = () => {
 
                     {/* TRY ON TRIGGER - Only if Model Exists */}
                     {product.model3D && (
-                        <div className="tryon-section">
+                        <div className="tryon-section" style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
                             <h3>Virtual Experience</h3>
                             <p>See how this looks on your 3D avatar!</p>
 
-                            <button className="tryon-launch-btn" onClick={() => {
-                                setIsDemoMode(false);
-                                setOverrideModel(null);
-                                setShowTryOn(true);
+                            {product.sizes && product.sizes.length > 0 && (
+                                <div style={{ marginBottom: "15px" }}>
+                                    <strong>Select a Size to Try On:</strong>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                        {product.sizes.map(sz => (
+                                            <button
+                                                key={sz}
+                                                onClick={() => setSelectedSize(sz)}
+                                                style={{
+                                                    padding: "8px 12px", border: "1px solid #ccc", borderRadius: "5px", cursor: "pointer",
+                                                    background: selectedSize === sz ? "#000" : "#fff",
+                                                    color: selectedSize === sz ? "#fff" : "#000",
+                                                    fontWeight: "bold"
+                                                }}
+                                            >
+                                                {sz}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                                // Save History
-                                const uStr = localStorage.getItem("user");
-                                if (uStr) {
-                                    const u = JSON.parse(uStr);
-                                    if (u.email) {
-                                        axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
-                                            productId: product._id,
-                                            productName: product.name,
-                                            productImage: product.image
-                                        }).catch(e => console.log("History log failed", e));
+                            <button
+                                className="tryon-launch-btn"
+                                style={{ width: '100%', padding: '12px', background: '#2196F3', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
+                                onClick={() => {
+                                    if (product.sizes?.length > 0 && !selectedSize) {
+                                        return toast.error("Please select a size first!");
                                     }
-                                }
-                            }}>
+
+                                    setIsDemoMode(false);
+                                    setOverrideModel(null);
+                                    setShowTryOn(true);
+
+                                    // Save History
+                                    const uStr = localStorage.getItem("user");
+                                    if (uStr) {
+                                        const u = JSON.parse(uStr);
+                                        if (u.email) {
+                                            axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
+                                                productId: product._id,
+                                                productName: product.name,
+                                                productImage: product.image
+                                            }).catch(e => console.log("History log failed", e));
+                                        }
+                                    }
+                                }}>
                                 👕 Try This Product
+                            </button>
+
+                            {/* COMBINATION TRY ON BUTTON */}
+                            <button
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#4CAF50',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '5px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    transition: '0.3s',
+                                    marginTop: '10px'
+                                }}
+                                onClick={() => {
+                                    const getCanonicalType = (p) => {
+                                        const cat = (p.type || p.category || "").toLowerCase();
+                                        if (cat.includes("top") || cat.includes("shirt") || cat.includes("jacket") || cat.includes("tshirt") || cat.includes("upper")) return "top";
+                                        if (cat.includes("pant") || cat.includes("trouser") || cat.includes("bottom") || cat.includes("short") || cat.includes("jeans") || cat.includes("lower")) return "bottom";
+                                        if (cat.includes("dress") || cat.includes("suit") || cat.includes("outfit") || cat.includes("frock") || cat.includes("gown")) return "full";
+                                        if (cat.includes("shoe") || cat.includes("foot")) return "shoes";
+                                        return cat; // fallback
+                                    };
+
+                                    const savedProducts = JSON.parse(localStorage.getItem('combinationTryOnProducts') || '[]');
+                                    const newType = getCanonicalType(product);
+
+                                    // Filter existing items
+                                    let filtered = savedProducts.filter(item => getCanonicalType(item) !== newType);
+
+                                    if (newType === "full") {
+                                        filtered = filtered.filter(item => {
+                                            const t = getCanonicalType(item);
+                                            return t !== "top" && t !== "bottom";
+                                        });
+                                    } else if (newType === "top" || newType === "bottom") {
+                                        filtered = filtered.filter(item => getCanonicalType(item) !== "full");
+                                    }
+
+                                    const updatedProducts = [...filtered, {
+                                        ...product,
+                                        id: product._id,
+                                        image: product.image?.startsWith('http') ? product.image : `http://localhost:5000${product.image}`
+                                    }];
+
+                                    localStorage.setItem('combinationTryOnProducts', JSON.stringify(updatedProducts));
+                                    toast.success("Added to Combination Try-On!");
+                                    navigate("/virtual-tryon");
+                                }}
+                            >
+                                👗 Add to Combination Try-On
+                            </button>
+
+                            {/* AR BUTTON */}
+                            <button
+                                style={{ width: '100%', padding: '12px', background: '#9c27b0', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', marginTop: '10px' }}
+                                onClick={() => setShowAR(true)}
+                            >
+                                🔍 View in AR (Mobile)
                             </button>
                         </div>
                     )}
@@ -323,6 +454,14 @@ const ProductDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AR FULL SCREEN OVERLAY */}
+            {showAR && product.model3D && (
+                <ARViewer
+                    modelUrl={product.model3D.startsWith('http') ? product.model3D : `http://localhost:5000${product.model3D}`}
+                    onClose={() => setShowAR(false)}
+                />
+            )}
         </div >
     );
 };

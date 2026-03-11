@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, react-hooks/exhaustive-deps */
 // src/pages/CustomerDashboard.js
 import axios from "axios";
 import React, { useState, useEffect } from "react";
@@ -326,13 +327,19 @@ const CustomerDashboard = ({ user, onLogout }) => {
 
       <div className="dashboard-body">
         <aside className="profile-sidebar">
-          {["home", "wishlist", "cart", "orders", "profile", "avatar", "history"].map((tab) => (
+          {["home", "wishlist", "cart", "orders", "profile", "avatar", "history", "combination"].map((tab) => (
             <div
               key={tab}
-              className={`sidebar-tab ${activeTab === tab ? "active" : ""}`}
-              onClick={() => setActiveTab(tab)}
+              className={`sidebar-tab ${activeTab === tab ? "active" : ""} ${tab === 'combination' ? 'combination-active' : ''}`}
+              onClick={() => {
+                if (tab === "combination") {
+                  navigate("/virtual-tryon");
+                } else {
+                  setActiveTab(tab);
+                }
+              }}
             >
-              {tab.toUpperCase()}
+              {tab === "combination" ? "✨ COMBINATION TRY-ON" : tab.toUpperCase()}
             </div>
           ))}
         </aside>

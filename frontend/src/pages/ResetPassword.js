@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -102,7 +103,7 @@ const ResetPassword = () => {
     <div className="login-container">
       <div className="login-box">
         <h2>Reset Your Password</h2>
-        
+
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
@@ -114,18 +115,18 @@ const ResetPassword = () => {
               placeholder="New Password"
               className="form-input"
               value={formData.newPassword}
-              onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
               required
               minLength={6}
             />
-            
+
             <input
               type="password"
               name="confirmPassword"
               placeholder="Confirm New Password"
               className="form-input"
               value={formData.confirmPassword}
-              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               required
               minLength={6}
             />

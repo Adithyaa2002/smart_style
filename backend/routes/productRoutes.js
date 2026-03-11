@@ -265,7 +265,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // --------------------- UPDATE PRODUCT ---------------------
-router.put("/:id", async (req, res) => {
+router.put("/:id", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D', maxCount: 1 }]), async (req, res) => {
   try {
     const { vendorId } = req.body;
     const product = await Product.findById(req.params.id);
@@ -277,7 +277,28 @@ router.put("/:id", async (req, res) => {
       return res.status(403).json({ message: "Unauthorized: You do not own this product" });
     }
 
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body };
+
+    // Handle optional file uploads during edit
+    const imageFile = req.files && req.files['image'] ? req.files['image'][0] : null;
+    const model3DFile = req.files && req.files['model3D'] ? req.files['model3D'][0] : null;
+
+    if (imageFile) {
+      updateData.image = `/uploads/${imageFile.filename}`;
+    }
+    if (model3DFile) {
+      updateData.model3D = `/uploads/${model3DFile.filename}`;
+    }
+
+    // Parse array fields if they come as strings from FormData
+    if (updateData.sizes && typeof updateData.sizes === 'string') {
+      updateData.sizes = updateData.sizes.split(",").map(s => s.trim());
+    }
+    if (updateData.colors && typeof updateData.colors === 'string') {
+      updateData.colors = updateData.colors.split(",").map(c => c.trim());
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
     });
     res.json(updatedProduct);

@@ -188,11 +188,47 @@ const VendorDashboard = ({ user, onLogout }) => {
   };
 
   // ---- Save Edited Product ----
+  // ---- Save Edited Product ----
   const handleSaveEdit = async () => {
     try {
+      const formData = new FormData();
+
+      // Fields to sync
+      const fields = ["name", "price", "description", "category", "gender", "brand", "stock"];
+      fields.forEach(f => {
+        if (editingProduct[f] !== undefined && editingProduct[f] !== null) {
+          formData.append(f, editingProduct[f]);
+        }
+      });
+
+      // Vendor/Security field
+      formData.append("vendorId", vendorUser.email);
+
+      // Handle Arrays (Backend handles strings or can split them)
+      if (editingProduct.sizes) {
+        const sValue = Array.isArray(editingProduct.sizes) ? editingProduct.sizes.join(",") : editingProduct.sizes;
+        formData.append("sizes", sValue);
+      }
+      if (editingProduct.colors) {
+        const cValue = Array.isArray(editingProduct.colors) ? editingProduct.colors.join(",") : editingProduct.colors;
+        formData.append("colors", cValue);
+      }
+
+      // If a new model3D was picked
+      if (editingProduct.newModel3D) {
+        formData.append("model3D", editingProduct.newModel3D);
+      }
+
+      // If a new image was picked (v2 support)
+      if (editingProduct.newImage) {
+        formData.append("image", editingProduct.newImage);
+      }
+
       const res = await axios.put(
         `http://localhost:5000/api/products/${editingProduct._id}`,
-        { ...editingProduct, vendorId: vendorUser.email } // ✅ Explicitly pass vendorId
+        formData,
+        // Removed manual Content-Type: multipart/form-data. 
+        // Axios 1.x handles FormData automatically and setting it manually often breaks the 'boundary' string.
       );
 
       setProducts(
@@ -200,10 +236,11 @@ const VendorDashboard = ({ user, onLogout }) => {
       );
 
       setEditingProduct(null);
-      alert("✏️ Product updated successfully!");
+      toast.success("✏️ Product updated successfully!");
     } catch (err) {
-      console.log(err);
-      alert("❌ Update failed: Unauthorized");
+      console.error("Update Error:", err.response?.data || err.message);
+      const errMsg = err.response?.data?.message || err.response?.data?.error || "Update failed.";
+      alert(`❌ ${errMsg}`);
     }
   };
 
@@ -513,10 +550,10 @@ const VendorDashboard = ({ user, onLogout }) => {
               <input type="number" name="stock" placeholder="Stock Quantity" value={newProduct.stock} onChange={handleProductChange} />
 
               <label>Product Image</label>
-              <input type="file" name="image" accept="image/*" onChange={handleProductChange} />
+              <input type="file" name="image" accept=".png, .jpg, .jpeg, .webp, .gif, .bmp, .tiff" onChange={handleProductChange} />
 
               <label>3D Model (Optional)</label>
-              <input type="file" name="model3D" accept=".glb,.gltf" onChange={handleProductChange} />
+              <input type="file" name="model3D" accept=".glb, .gltf" onChange={handleProductChange} />
 
               {/* SIZE CHART INPUT */}
               {(Array.isArray(newProduct.sizes) && newProduct.sizes.length > 0) && (
@@ -917,12 +954,65 @@ const VendorDashboard = ({ user, onLogout }) => {
           <div className="modal">
             <div className="modal-content">
               <h3>Edit Product</h3>
-              <input value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} />
-              <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })} />
-              <input value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })} />
-              <input type="number" value={editingProduct.stock} onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })} />
-              <button onClick={handleSaveEdit}>Save</button>
-              <button onClick={() => setEditingProduct(null)}>Cancel</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  Product Name:
+                  <input value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
+                </label>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <label style={{ flex: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    Price (₹):
+                    <input type="number" value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
+                  </label>
+                  <label style={{ flex: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    Stock:
+                    <input type="number" value={editingProduct.stock} onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
+                  </label>
+                </div>
+
+                <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  Category:
+                  <select value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px' }}>
+                    <option value="Topwear">Topwear</option>
+                    <option value="Bottomwear">Bottomwear</option>
+                    <option value="Footwear">Footwear</option>
+                    <option value="Accessories">Accessories</option>
+                    <option value="Innerwear">Innerwear</option>
+                  </select>
+                </label>
+
+                <div style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>📸 Replace Image</label>
+                  {editingProduct.image && !editingProduct.newImage && (
+                    <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img src={`http://localhost:5000${editingProduct.image}`} alt="current" style={{ width: '30px', height: '30px', borderRadius: '4px' }} />
+                      Current image linked.
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setEditingProduct({ ...editingProduct, newImage: e.target.files[0] });
+                    }
+                  }} style={{ width: '100%', fontSize: '0.8rem' }} />
+                </div>
+
+                <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  Update 3D Model (.glb / .gltf):
+                  {editingProduct.model3D && !editingProduct.newModel3D && (
+                    <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '5px' }}>Current model: {editingProduct.model3D.split('/').pop()}</div>
+                  )}
+                  <input type="file" accept=".glb, .gltf" onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setEditingProduct({ ...editingProduct, newModel3D: e.target.files[0] });
+                    }
+                  }} style={{ width: '100%', padding: '10px', marginTop: '5px' }} />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handleSaveEdit} className="primary-btn" style={{ flex: 1 }}>Save Changes</button>
+                <button onClick={() => setEditingProduct(null)} className="secondary-btn" style={{ flex: 1 }}>Cancel</button>
+              </div>
             </div>
           </div>
         )}

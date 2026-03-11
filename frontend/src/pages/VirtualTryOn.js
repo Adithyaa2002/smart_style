@@ -15,10 +15,19 @@ const VirtualTryOn = () => {
     localStorage.setItem('combinationTryOnProducts', JSON.stringify(selectedProducts));
   }, [selectedProducts]);
 
-  const [outfitHistory, setOutfitHistory] = useState([]);
+  const [tryOnHistory, setTryOnHistory] = useState([]); // Fetch from backend
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('browse');
   const [products, setProducts] = useState([]); // Real products from DB
+
+  const getUserData = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      return { email: user?.email, id: user?.id || user?._id };
+    } catch {
+      return null;
+    }
+  };
 
   // CLOTHING ADJUSTMENT STATE
   const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
@@ -70,7 +79,7 @@ const VirtualTryOn = () => {
     }
   };
 
-  // FETCH PRODUCTS
+  // FETCH PRODUCTS AND HISTORY
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -81,8 +90,32 @@ const VirtualTryOn = () => {
         console.error("Failed to fetch products:", err);
       }
     };
+
+    const fetchHistory = async () => {
+      const userData = getUserData();
+      if (!userData || !userData.email) {
+        console.log("⚠️ Cannot fetch history: No user data found in localStorage");
+        return;
+      }
+      try {
+        console.log(`🔍 Fetching history for ${userData.email}...`);
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}`);
+        const data = await response.json();
+        console.log("📥 Received history data:", data);
+        if (data && data.tryOnHistory) {
+          setTryOnHistory(data.tryOnHistory);
+        } else {
+          console.log("📭 No tryOnHistory found in response");
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch history:", err);
+      }
+    };
+
     fetchProducts();
-  }, []);
+    fetchHistory();
+  }, [activeTab]); // Re-fetch history when tabs change
+
 
   // Filter products for try-on
   const displayProducts = products.length > 0 ? products : [
@@ -177,30 +210,64 @@ const VirtualTryOn = () => {
     setSelectedProducts(selectedProducts.filter(item => item.id !== productId));
   };
 
-  const saveOutfit = () => {
-    if (selectedProducts.length > 0) {
-      const newOutfit = {
-        id: Date.now(),
-        products: [...selectedProducts],
-        timestamp: new Date().toLocaleString()
-      };
-      setOutfitHistory([newOutfit, ...outfitHistory]);
-      alert('Outfit saved successfully! 💾');
-    } else {
-      alert('Please select some products first!');
-    }
-  };
-
-  const loadOutfit = (outfit) => {
-    setSelectedProducts(outfit.products);
-  };
-
   const clearOutfit = () => {
     setSelectedProducts([]);
   };
 
-  const simulateTryOn = () => {
+  const clearTryOnHistory = async () => {
+    if (!window.confirm("Are you sure you want to clear your entire try-on history?")) return;
+
+    const userData = getUserData();
+    if (!userData || !userData.email) return;
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setTryOnHistory([]);
+        alert("History cleared successfully! 🗑️");
+      }
+    } catch (err) {
+      console.error("Failed to clear history:", err);
+    }
+  };
+
+  const simulateTryOn = async () => {
+    if (selectedProducts.length === 0) return;
+
     setIsLoading(true);
+
+    // Auto-save to backend history
+    const userData = getUserData();
+    if (userData && userData.email) {
+      console.log(`📡 Sending try-on history for ${userData.email}...`);
+      try {
+        for (const item of selectedProducts) {
+          const productId = item.id || item._id;
+          if (productId) {
+            console.log(`📤 Saving product: ${item.name} (${productId})`);
+            const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: userData.id,
+                productId,
+                productName: item.name,
+                productImage: item.image
+              })
+            });
+            const resData = await response.json();
+            console.log(`📥 Backend response for ${item.name}:`, resData);
+          }
+        }
+      } catch (err) {
+        console.error("❌ Failed to explicitly log try-on history:", err);
+      }
+    } else {
+      console.log("⚠️ Cannot save history: No user data found");
+    }
+
     // Simulate AI processing
     setTimeout(() => {
       setIsLoading(false);
@@ -233,7 +300,7 @@ const VirtualTryOn = () => {
               className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
               onClick={() => setActiveTab('history')}
             >
-              💾 Saved Outfits
+              🕒 Try-On History
             </button>
             <button
               className={`tab-btn ${activeTab === 'face' ? 'active' : ''}`}
@@ -452,29 +519,31 @@ const VirtualTryOn = () => {
 
           {activeTab === 'history' && (
             <div className="outfit-history">
-              <h3>Your Saved Outfits</h3>
-              {outfitHistory.length === 0 ? (
-                <p className="no-outfits">No saved outfits yet</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0 }}>Your Try-On History</h3>
+                {tryOnHistory.length > 0 && (
+                  <button
+                    onClick={clearTryOnHistory}
+                    style={{ background: '#ff4d4f', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    🗑️ Clear History
+                  </button>
+                )}
+              </div>
+              {tryOnHistory.length === 0 ? (
+                <p className="no-outfits">You haven't tried on any clothes yet.</p>
               ) : (
-                outfitHistory.map(outfit => (
-                  <div key={outfit.id} className="saved-outfit">
-                    <div className="outfit-preview">
-                      {outfit.products.slice(0, 3).map((product, index) => (
-                        <img key={index} src={product.image} alt={product.name} />
-                      ))}
+                <div className="tryon-products-grid">
+                  {tryOnHistory.map((item, idx) => (
+                    <div key={idx} className="tryon-product-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/product/${item.productId}`)}>
+                      <img src={item.productImage?.startsWith("http") ? item.productImage : `http://localhost:5000${item.productImage}`} alt={item.productName} />
+                      <div className="product-info">
+                        <h4>{item.productName}</h4>
+                        <p style={{ fontSize: '0.8rem', color: '#666' }}>Tried on {new Date(item.triedAt || Date.now()).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div className="outfit-info">
-                      <p>{outfit.products.length} items</p>
-                      <small>{outfit.timestamp}</small>
-                    </div>
-                    <button
-                      className="load-outfit-btn"
-                      onClick={() => loadOutfit(outfit)}
-                    >
-                      Load
-                    </button>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -492,13 +561,6 @@ const VirtualTryOn = () => {
                   disabled={selectedProducts.length === 0}
                 >
                   🗑️ Clear
-                </button>
-                <button
-                  className="action-btn secondary"
-                  onClick={saveOutfit}
-                  disabled={selectedProducts.length === 0}
-                >
-                  💾 Save Outfit
                 </button>
                 <button
                   className="action-btn primary"

@@ -22,7 +22,7 @@ const CustomerSchema = new mongoose.Schema({
   },
 
   tryOnHistory: [{
-    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    productId: String,
     productName: String,
     productImage: String,
     triedAt: { type: Date, default: Date.now }

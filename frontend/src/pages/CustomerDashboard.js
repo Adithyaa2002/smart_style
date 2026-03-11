@@ -214,6 +214,23 @@ const CustomerDashboard = ({ user, onLogout }) => {
     navigate("/");
   };
 
+  const clearTryOnHistory = async () => {
+    if (!window.confirm("Are you sure you want to clear your entire try-on history?")) return;
+
+    if (!customer?.email) return;
+
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}/tryon`);
+      if (response.data.success) {
+        setCustomer({ ...customer, tryOnHistory: [] });
+        toast.success("History cleared successfully! 🗑️");
+      }
+    } catch (err) {
+      console.error("Failed to clear history:", err);
+      toast.error("Failed to clear history");
+    }
+  };
+
   const handleFaceUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1130,7 +1147,17 @@ const CustomerDashboard = ({ user, onLogout }) => {
           {/* HISTORY */}
           {activeTab === "history" && (
             <div className="history-section" style={{ padding: '20px' }}>
-              <h2>🕒 Virtual Try-On History</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h2 style={{ margin: 0 }}>🕒 Virtual Try-On History</h2>
+                {customer.tryOnHistory && customer.tryOnHistory.length > 0 && (
+                  <button
+                    onClick={clearTryOnHistory}
+                    style={{ background: '#ff4d4f', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    🗑️ Clear History
+                  </button>
+                )}
+              </div>
               {!customer.tryOnHistory || customer.tryOnHistory.length === 0 ? (
                 <p>You haven't tried on any clothes yet.</p>
               ) : (

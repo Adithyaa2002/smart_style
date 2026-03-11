@@ -58,10 +58,16 @@ router.put("/:email", async (req, res) => {
 // ADD TRY-ON HISTORY
 router.post("/:email/tryon", async (req, res) => {
   const email = decodeURIComponent(req.params.email);
-  const { productId, productName, productImage } = req.body;
+  const { productId, productName, productImage, userId } = req.body;
+  console.log(`📑 Attempting to add try-on history for ${email}. Product: ${productName} (${productId})`);
+
   try {
-    const customer = await Customer.findOne({ email });
-    if (!customer) return res.status(404).json({ error: "Customer not found" });
+    let customer = await Customer.findOne({ email });
+    if (!customer) {
+      console.log(`👤 Customer profile not found for ${email}. Auto-creating with userId: ${userId}`);
+      if (!userId) return res.status(404).json({ error: "Customer not found and no userId provided" });
+      customer = new Customer({ email, userId });
+    }
 
     // Check if distinct product
     const existingIdx = customer.tryOnHistory ? customer.tryOnHistory.findIndex(h => h.productId && h.productId.toString() === productId) : -1;
@@ -80,7 +86,23 @@ router.post("/:email/tryon", async (req, res) => {
     if (customer.tryOnHistory.length > 20) customer.tryOnHistory.pop();
 
     await customer.save();
+    console.log(`✅ Try-on history updated for ${email}. Total items: ${customer.tryOnHistory.length}`);
     res.json(customer.tryOnHistory);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+// CLEAR TRY-ON HISTORY
+router.delete("/:email/tryon", async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+  try {
+    const customer = await Customer.findOne({ email });
+    if (!customer) return res.json({ success: true, message: "Nothing to clear, customer not found" });
+
+    customer.tryOnHistory = [];
+    await customer.save();
+    res.json({ success: true, message: "Try-on history cleared" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

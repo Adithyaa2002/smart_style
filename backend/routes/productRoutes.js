@@ -4,6 +4,8 @@ const express = require("express");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 const router = express.Router();
 
@@ -309,6 +311,8 @@ router.post("/reviews/:id", async (req, res) => {
 
 // --------------------- SAVE CLOTHING ADJUSTMENTS (Try-On UI) ---------------------
 router.patch("/:id/adjustments", async (req, res) => {
+  console.log(`PATCH /api/products/${req.params.id}/adjustments request received`);
+  console.log('Body:', req.body);
   try {
     const { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ } = req.body;
     const product = await Product.findByIdAndUpdate(
@@ -316,10 +320,25 @@ router.patch("/:id/adjustments", async (req, res) => {
       { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ },
       { new: true }
     );
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!product) {
+      console.log('Product not found for ID:', req.params.id);
+      return res.status(404).json({ message: "Product not found" });
+    }
+    console.log('Product updated successfully:', product._id);
     res.json({ success: true, product });
   } catch (err) {
+    console.error('Error updating adjustments:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --------------------- COMPATIBILITY: SERVE MODEL FILES ---------------------
+router.get("/file/:filename", (req, res) => {
+  const filePath = path.join(__dirname, "../uploads", req.params.filename);
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ message: "File not found" });
   }
 });
 

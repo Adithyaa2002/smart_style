@@ -13,6 +13,13 @@ const productSchema = new mongoose.Schema({
   description: { type: String },
   image: { type: String },      // URL or base64 string
   model3D: { type: String },    // Path to valid .glb/.gltf file
+
+  // Per-product clothing positioning adjustments (stored by admin/vendor)
+  adjustmentScale: { type: Number, default: 1.0 },
+  adjustmentX: { type: Number, default: 0 },
+  adjustmentY: { type: Number, default: 0 },
+  adjustmentZ: { type: Number, default: 0 },
+  adjustmentDepth: { type: Number, default: 0 },
   sizeChart: {
     type: Map,
     of: {

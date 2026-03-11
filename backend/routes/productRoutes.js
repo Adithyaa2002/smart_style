@@ -307,4 +307,20 @@ router.post("/reviews/:id", async (req, res) => {
   }
 });
 
+// --------------------- SAVE CLOTHING ADJUSTMENTS (Try-On UI) ---------------------
+router.patch("/:id/adjustments", async (req, res) => {
+  try {
+    const { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ } = req.body;
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ },
+      { new: true }
+    );
+    if (!product) return res.status(404).json({ message: "Product not found" });
+    res.json({ success: true, product });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

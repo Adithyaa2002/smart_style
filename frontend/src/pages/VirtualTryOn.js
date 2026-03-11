@@ -19,8 +19,20 @@ const VirtualTryOn = () => {
     }
   };
 
-  // CLOTHING ADJUSTMENT STATE
+  // CLOTHING ADJUSTMENT STATE - loads from selected product's DB values
   const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
+
+  // Auto-load adjustments when selected product changes
+  useEffect(() => {
+    if (selectedProducts.length === 0) return;
+    const lastProduct = selectedProducts[selectedProducts.length - 1];
+    setClothingAdj({
+      scale: lastProduct.adjustmentScale ?? 1.0,
+      x: lastProduct.adjustmentX ?? 0,
+      y: lastProduct.adjustmentY ?? 0,
+      z: lastProduct.adjustmentZ ?? 0,
+    });
+  }, [selectedProducts.length]);
 
   // MEASUREMENTS & FACE PARAMS
   const [measurements, setMeasurements] = useState(() => {
@@ -198,6 +210,38 @@ const VirtualTryOn = () => {
     }
   };
 
+  const saveAdjustments = async () => {
+    if (selectedProducts.length === 0) return;
+    const lastProduct = selectedProducts[selectedProducts.length - 1];
+    const productId = lastProduct._id || lastProduct.id;
+    if (!productId) return alert("Cannot save: no product selected.");
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/products/${productId}/adjustments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adjustmentScale: clothingAdj.scale,
+          adjustmentX: clothingAdj.x,
+          adjustmentY: clothingAdj.y,
+          adjustmentZ: clothingAdj.z,
+        })
+      });
+      if (response.ok) {
+        // Update in local products state so auto-load picks up new values
+        setProducts(prev => prev.map(p => (p._id || p.id) === productId
+          ? { ...p, adjustmentScale: clothingAdj.scale, adjustmentX: clothingAdj.x, adjustmentY: clothingAdj.y, adjustmentZ: clothingAdj.z }
+          : p
+        ));
+        alert("✅ Adjustments saved! Everyone who tries on this product will see these settings.");
+      } else {
+        alert("❌ Failed to save adjustments.");
+      }
+    } catch (err) {
+      console.error("Save adjustments error:", err);
+      alert("❌ Network error while saving.");
+    }
+  };
+
   const simulateTryOn = async () => {
     if (selectedProducts.length === 0) return;
 
@@ -351,6 +395,14 @@ const VirtualTryOn = () => {
                   style={{ width: '100%', fontSize: '0.8rem' }}
                 >
                   Reset Adjustments
+                </button>
+                <button
+                  className="action-btn primary"
+                  onClick={saveAdjustments}
+                  disabled={selectedProducts.length === 0}
+                  style={{ width: '100%', fontSize: '0.8rem', marginTop: '8px', background: '#28a745' }}
+                >
+                  💾 Save Adjustments for Everyone
                 </button>
               </div>
             </div>

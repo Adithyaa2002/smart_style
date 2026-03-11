@@ -23,7 +23,38 @@ const ProductDetails = () => {
     const [relatedProducts, setRelatedProducts] = useState([]); // New State
 
     // CLOTHING ADJUSTMENT STATE
-    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: 0, z: 0 });
+    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
+
+    // Auto-load adjustments when product is loaded
+    useEffect(() => {
+        if (product) {
+            setClothingAdj({
+                scale: product.adjustmentScale ?? 1.0,
+                x: product.adjustmentX ?? 0,
+                y: product.adjustmentY ?? 0,
+                z: product.adjustmentZ ?? 0,
+            });
+        }
+    }, [product?._id]);
+
+    const saveAdjustments = async () => {
+        if (!product?._id) return toast.error("No product loaded");
+        try {
+            const res = await axios.patch(`http://localhost:5000/api/products/${product._id}/adjustments`, {
+                adjustmentScale: clothingAdj.scale,
+                adjustmentX: clothingAdj.x,
+                adjustmentY: clothingAdj.y,
+                adjustmentZ: clothingAdj.z,
+            });
+            if (res.data.success) {
+                setProduct({ ...product, ...res.data.product });
+                toast.success("✅ Adjustments saved for everyone!");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to save adjustments");
+        }
+    };
 
     // --- Review State & Handler ---
     const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
@@ -121,6 +152,7 @@ const ProductDetails = () => {
                                 category={product.category}
                                 modelUrl={measurements.gender === 'male' ? "/models/male_base.glb" : "/models/female_base.glb"}
                                 adjustmentScale={clothingAdj.scale}
+                                adjustmentX={clothingAdj.x}
                                 adjustmentY={clothingAdj.y}
                                 adjustmentZ={clothingAdj.z}
                                 faceParams={faceParams}
@@ -134,197 +166,218 @@ const ProductDetails = () => {
                                 zIndex: 120, fontSize: '0.8rem'
                             }}>
                                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '5px' }}>
-                                    <label>Size:</label>
-                                    <input type="range" min="0.5" max="5.0" step="0.1" value={clothingAdj.scale}
-                                        onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
-                                        style={{ flex: 1 }} />
-                                    <span>{clothingAdj.scale.toFixed(1)}x</span>
+                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Size:</label>
+                                            <input type="range" min="0.5" max="5.0" step="0.1" value={clothingAdj.scale}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>X:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.x}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, x: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Y:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.y}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Z:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.z}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, z: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                                        <button
+                                            onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
+                                            style={{ flex: 1, fontSize: '10px', padding: '5px' }}
+                                        >
+                                            Reset
+                                        </button>
+                                        <button
+                                            onClick={saveAdjustments}
+                                            style={{ flex: 2, fontSize: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', padding: '5px' }}
+                                        >
+                                            💾 Save for Everyone
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <label>Up/Down:</label>
-                                    <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.y}
-                                        onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
-                                        style={{ flex: 1 }} />
-                                    <span>{clothingAdj.y.toFixed(2)}</span>
-                                </div>
-                                <button
-                                    onClick={() => setClothingAdj({ scale: 1.0, y: 0, z: 0 })}
-                                    style={{ width: '100%', marginTop: '5px', fontSize: '10px' }}
-                                >
-                                    Reset Fixes
-                                </button>
+                                <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
                             </div>
-                            <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
-                        </div >
-                    ) : (
-                        <img
-                            src={product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`}
-                            alt={product.name}
-                            className="main-product-img"
-                        />
+                            ) : (
+                            <img
+                                src={product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`}
+                                alt={product.name}
+                                className="main-product-img"
+                            />
                     )}
-                </div >
+                        </div>
 
                 {/* Right: Details */}
-                < div className="product-info" >
-                    <h1>{product.name}</h1>
-                    <p className="price">₹{product.price}</p>
+                    <div className="product-info">
+                        <h1>{product.name}</h1>
+                        <p className="price">₹{product.price}</p>
 
-                    <div className="stock-status">
-                        {product.stock > 0 ? (
-                            <span className="in-stock">✅ In Stock ({product.stock} left)</span>
+                        <div className="stock-status">
+                            {product.stock > 0 ? (
+                                <span className="in-stock">✅ In Stock ({product.stock} left)</span>
+                            ) : (
+                                <span className="out-of-stock">❌ Out of Stock</span>
+                            )}
+                        </div>
+
+                        <p className="description">
+                            {product.description || "No description available for this product. High quality fabric and premium stitch."}
+                        </p>
+
+                        <p className="category">Category: <strong>{product.category}</strong></p>
+
+                        <div className="action-buttons">
+                            <button
+                                className="buy-now-btn"
+                                disabled={product.stock <= 0}
+                                onClick={() => {
+                                    addToCart({ ...product, id: product._id });
+                                    navigate("/cart");
+                                }}
+                            >
+                                Buy Now
+                            </button>
+
+                            <button
+                                className="add-cart-btn"
+                                disabled={product.stock <= 0}
+                                onClick={() => {
+                                    addToCart({ ...product, id: product._id });
+                                    toast.success("Added to Cart!");
+                                }}
+                            >
+                                Add to Cart
+                            </button>
+
+                            <button
+                                className={`wishlist-action-btn ${isWishlisted(product._id) ? "active" : ""}`}
+                                onClick={() => isWishlisted(product._id) ? removeFromWishlist(product._id) : addToWishlist(product)}
+                            >
+                                {isWishlisted(product._id) ? "❤️ Wishlisted" : "🤍 Add to Wishlist"}
+                            </button>
+                        </div>
+
+                        {/* TRY ON TRIGGER - Only if Model Exists */}
+                        {product.model3D && (
+                            <div className="tryon-section">
+                                <h3>Virtual Experience</h3>
+                                <p>See how this looks on your 3D avatar!</p>
+
+                                <button className="tryon-launch-btn" onClick={() => {
+                                    setIsDemoMode(false);
+                                    setOverrideModel(null);
+                                    setShowTryOn(true);
+
+                                    // Save History
+                                    const uStr = localStorage.getItem("user");
+                                    if (uStr) {
+                                        const u = JSON.parse(uStr);
+                                        if (u.email) {
+                                            axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
+                                                productId: product._id,
+                                                productName: product.name,
+                                                productImage: product.image
+                                            }).catch(e => console.log("History log failed", e));
+                                        }
+                                    }
+                                }}>
+                                    👕 Try This Product
+                                </button>
+                            </div>
+                        )}
+                    </div >
+                </div >
+
+                {/* RELATED PRODUCTS SECTION */}
+                {
+                    relatedProducts.length > 0 && (
+                        <div className="related-products-section">
+                            <h2>You May Also Like</h2>
+                            <div className="related-grid">
+                                {relatedProducts.map((rp) => (
+                                    <div key={rp._id} className="related-card" onClick={() => {
+                                        setProduct(rp); // Update current view immediately
+                                        navigate(`/product/${rp._id}`, { state: rp });
+                                        window.scrollTo(0, 0); // Scroll top
+                                    }}>
+                                        <img
+                                            src={rp.image?.startsWith("http") ? rp.image : `http://localhost:5000${rp.image}`}
+                                            alt={rp.name}
+                                        />
+                                        <h4>{rp.name}</h4>
+                                        <p>₹{rp.price}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* REVIEWS SECTION */}
+                <div className="reviews-section">
+                    <h2>Customer Reviews ({product.reviews?.length || 0})</h2>
+                    <div className="average-rating-display">
+                        <span className="stars-large">{"★".repeat(Math.round(product.rating || 0)) + "☆".repeat(5 - Math.round(product.rating || 0))}</span>
+                        <span className="rating-text">{product.rating?.toFixed(1) || 0} / 5</span>
+                    </div>
+
+                    <div className="reviews-list">
+                        {product.reviews && product.reviews.length > 0 ? (
+                            product.reviews.slice().reverse().map((rev, idx) => (
+                                <div key={idx} className="review-card">
+                                    <div className="review-avatar">{rev.userName.charAt(0).toUpperCase()}</div>
+                                    <div className="review-content">
+                                        <div className="review-header">
+                                            <strong>{rev.userName}</strong>
+                                            <span className="review-date">{new Date(rev.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                        <div className="review-stars">
+                                            {"★".repeat(rev.rating) + "☆".repeat(5 - rev.rating)}
+                                        </div>
+                                        <p className="review-text">{rev.comment}</p>
+                                    </div>
+                                </div>
+                            ))
                         ) : (
-                            <span className="out-of-stock">❌ Out of Stock</span>
+                            <p className="no-reviews">No reviews yet. Be the first to share your thoughts!</p>
                         )}
                     </div>
 
-                    <p className="description">
-                        {product.description || "No description available for this product. High quality fabric and premium stitch."}
-                    </p>
-
-                    <p className="category">Category: <strong>{product.category}</strong></p>
-
-                    <div className="action-buttons">
-                        <button
-                            className="buy-now-btn"
-                            disabled={product.stock <= 0}
-                            onClick={() => {
-                                addToCart({ ...product, id: product._id });
-                                navigate("/cart");
-                            }}
-                        >
-                            Buy Now
-                        </button>
-
-                        <button
-                            className="add-cart-btn"
-                            disabled={product.stock <= 0}
-                            onClick={() => {
-                                addToCart({ ...product, id: product._id });
-                                toast.success("Added to Cart!");
-                            }}
-                        >
-                            Add to Cart
-                        </button>
-
-                        <button
-                            className={`wishlist-action-btn ${isWishlisted(product._id) ? "active" : ""}`}
-                            onClick={() => isWishlisted(product._id) ? removeFromWishlist(product._id) : addToWishlist(product)}
-                        >
-                            {isWishlisted(product._id) ? "❤️ Wishlisted" : "🤍 Add to Wishlist"}
-                        </button>
-                    </div>
-
-                    {/* TRY ON TRIGGER - Only if Model Exists */}
-                    {product.model3D && (
-                        <div className="tryon-section">
-                            <h3>Virtual Experience</h3>
-                            <p>See how this looks on your 3D avatar!</p>
-
-                            <button className="tryon-launch-btn" onClick={() => {
-                                setIsDemoMode(false);
-                                setOverrideModel(null);
-                                setShowTryOn(true);
-
-                                // Save History
-                                const uStr = localStorage.getItem("user");
-                                if (uStr) {
-                                    const u = JSON.parse(uStr);
-                                    if (u.email) {
-                                        axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
-                                            productId: product._id,
-                                            productName: product.name,
-                                            productImage: product.image
-                                        }).catch(e => console.log("History log failed", e));
-                                    }
-                                }
-                            }}>
-                                👕 Try This Product
-                            </button>
+                    <div className="add-review-form">
+                        <h3>Write a Review</h3>
+                        <div className="review-inputs">
+                            <select
+                                value={newReview.rating}
+                                onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
+                            >
+                                <option value="5">⭐⭐⭐⭐⭐ (Excellent)</option>
+                                <option value="4">⭐⭐⭐⭐ (Good)</option>
+                                <option value="3">⭐⭐⭐ (Average)</option>
+                                <option value="2">⭐⭐ (Poor)</option>
+                                <option value="1">⭐ (Terrible)</option>
+                            </select>
+                            <textarea
+                                placeholder="Share your experience with this product..."
+                                value={newReview.comment}
+                                onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                            />
+                            <button className="submit-review-btn" onClick={handleSubmitReview}>Submit Review</button>
                         </div>
-                    )}
-                </div >
+                    </div>
+                </div>
             </div >
-
-            {/* RELATED PRODUCTS SECTION */}
-            {
-                relatedProducts.length > 0 && (
-                    <div className="related-products-section">
-                        <h2>You May Also Like</h2>
-                        <div className="related-grid">
-                            {relatedProducts.map((rp) => (
-                                <div key={rp._id} className="related-card" onClick={() => {
-                                    setProduct(rp); // Update current view immediately
-                                    navigate(`/product/${rp._id}`, { state: rp });
-                                    window.scrollTo(0, 0); // Scroll top
-                                }}>
-                                    <img
-                                        src={rp.image?.startsWith("http") ? rp.image : `http://localhost:5000${rp.image}`}
-                                        alt={rp.name}
-                                    />
-                                    <h4>{rp.name}</h4>
-                                    <p>₹{rp.price}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* REVIEWS SECTION */}
-            <div className="reviews-section">
-                <h2>Customer Reviews ({product.reviews?.length || 0})</h2>
-                <div className="average-rating-display">
-                    <span className="stars-large">{"★".repeat(Math.round(product.rating || 0)) + "☆".repeat(5 - Math.round(product.rating || 0))}</span>
-                    <span className="rating-text">{product.rating?.toFixed(1) || 0} / 5</span>
-                </div>
-
-                <div className="reviews-list">
-                    {product.reviews && product.reviews.length > 0 ? (
-                        product.reviews.slice().reverse().map((rev, idx) => (
-                            <div key={idx} className="review-card">
-                                <div className="review-avatar">{rev.userName.charAt(0).toUpperCase()}</div>
-                                <div className="review-content">
-                                    <div className="review-header">
-                                        <strong>{rev.userName}</strong>
-                                        <span className="review-date">{new Date(rev.createdAt).toLocaleDateString()}</span>
-                                    </div>
-                                    <div className="review-stars">
-                                        {"★".repeat(rev.rating) + "☆".repeat(5 - rev.rating)}
-                                    </div>
-                                    <p className="review-text">{rev.comment}</p>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <p className="no-reviews">No reviews yet. Be the first to share your thoughts!</p>
-                    )}
-                </div>
-
-                <div className="add-review-form">
-                    <h3>Write a Review</h3>
-                    <div className="review-inputs">
-                        <select
-                            value={newReview.rating}
-                            onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
-                        >
-                            <option value="5">⭐⭐⭐⭐⭐ (Excellent)</option>
-                            <option value="4">⭐⭐⭐⭐ (Good)</option>
-                            <option value="3">⭐⭐⭐ (Average)</option>
-                            <option value="2">⭐⭐ (Poor)</option>
-                            <option value="1">⭐ (Terrible)</option>
-                        </select>
-                        <textarea
-                            placeholder="Share your experience with this product..."
-                            value={newReview.comment}
-                            onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                        />
-                        <button className="submit-review-btn" onClick={handleSubmitReview}>Submit Review</button>
-                    </div>
-                </div>
-            </div>
-        </div >
-    );
+            );
 };
 
-export default ProductDetails;
+            export default ProductDetails;

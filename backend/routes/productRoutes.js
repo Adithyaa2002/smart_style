@@ -9,6 +9,28 @@ const fs = require("fs");
 
 const router = express.Router();
 
+// --------------------- TEST ROUTE ---------------------
+router.get("/test-route", (req, res) => {
+  res.json({ message: "Product routes are active!", time: new Date().toISOString() });
+});
+
+// --------------------- COMPATIBILITY: SERVE MODEL FILES ---------------------
+router.get("/file/:filename", (req, res) => {
+  const fileName = req.params.filename;
+  const filePath = path.join(__dirname, "../uploads", fileName);
+
+  console.log(`[DEBUG] Attempting to serve file: ${fileName}`);
+  console.log(`[DEBUG] Resolved Path: ${filePath}`);
+  console.log(`[DEBUG] Exist Check: ${fs.existsSync(filePath)}`);
+
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    console.warn(`[DEBUG] File not found: ${filePath}`);
+    res.status(404).json({ message: "File not found" });
+  }
+});
+
 // --------------------- Multer Configuration ---------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
@@ -329,16 +351,6 @@ router.patch("/:id/adjustments", async (req, res) => {
   } catch (err) {
     console.error('Error updating adjustments:', err);
     res.status(500).json({ error: err.message });
-  }
-});
-
-// --------------------- COMPATIBILITY: SERVE MODEL FILES ---------------------
-router.get("/file/:filename", (req, res) => {
-  const filePath = path.join(__dirname, "../uploads", req.params.filename);
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).json({ message: "File not found" });
   }
 });
 

@@ -156,6 +156,7 @@ const ProductDetails = () => {
                                 adjustmentY={clothingAdj.y}
                                 adjustmentZ={clothingAdj.z}
                                 faceParams={faceParams}
+                                name={product.name}
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
 

@@ -633,6 +633,7 @@ const VirtualTryOn = () => {
                           : null
                       }
                       category={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].type || selectedProducts[selectedProducts.length - 1].category) : ""}
+                      name={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].name || selectedProducts[selectedProducts.length - 1].productName || selectedProducts[selectedProducts.length - 1].title || "Garment") : ""}
                       faceParams={faceParams}
                       adjustmentScale={clothingAdj.scale}
                       adjustmentX={clothingAdj.x}

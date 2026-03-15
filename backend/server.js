@@ -1,16 +1,11 @@
-// server.js
-require("dotenv").config();
-
-
-
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 
-// Load env vars
-dotenv.config();
+// Load env vars from .env file in the same directory as server.js
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 // Import database connection
 const connectDB = require('./config/database');

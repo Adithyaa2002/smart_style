@@ -29,8 +29,20 @@ const VirtualTryOn = () => {
     }
   };
 
-  // CLOTHING ADJUSTMENT STATE
+  // CLOTHING ADJUSTMENT STATE - loads from selected product's DB values
   const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
+
+  // Auto-load adjustments when selected product changes
+  useEffect(() => {
+    if (selectedProducts.length === 0) return;
+    const lastProduct = selectedProducts[selectedProducts.length - 1];
+    setClothingAdj({
+      scale: lastProduct.adjustmentScale ?? 1.0,
+      x: lastProduct.adjustmentX ?? 0,
+      y: lastProduct.adjustmentY ?? 0,
+      z: lastProduct.adjustmentZ ?? 0,
+    });
+  }, [selectedProducts.length]);
 
   // MEASUREMENTS & FACE PARAMS
   const [measurements, setMeasurements] = useState(() => {
@@ -233,6 +245,38 @@ const VirtualTryOn = () => {
     }
   };
 
+  const saveAdjustments = async () => {
+    if (selectedProducts.length === 0) return;
+    const lastProduct = selectedProducts[selectedProducts.length - 1];
+    const productId = lastProduct._id || lastProduct.id;
+    if (!productId) return alert("Cannot save: no product selected.");
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/products/${productId}/adjustments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adjustmentScale: clothingAdj.scale,
+          adjustmentX: clothingAdj.x,
+          adjustmentY: clothingAdj.y,
+          adjustmentZ: clothingAdj.z,
+        })
+      });
+      if (response.ok) {
+        // Update in local products state so auto-load picks up new values
+        setProducts(prev => prev.map(p => (p._id || p.id) === productId
+          ? { ...p, adjustmentScale: clothingAdj.scale, adjustmentX: clothingAdj.x, adjustmentY: clothingAdj.y, adjustmentZ: clothingAdj.z }
+          : p
+        ));
+        alert("✅ Adjustments saved! Everyone who tries on this product will see these settings.");
+      } else {
+        alert("❌ Failed to save adjustments.");
+      }
+    } catch (err) {
+      console.error("Save adjustments error:", err);
+      alert("❌ Network error while saving.");
+    }
+  };
+
   const simulateTryOn = async () => {
     if (selectedProducts.length === 0) return;
 
@@ -308,92 +352,32 @@ const VirtualTryOn = () => {
             >
               👤 Avatar Face
             </button>
-            <button
-              className={`tab-btn ${activeTab === 'adjust' ? 'active' : ''}`}
-              onClick={() => setActiveTab('adjust')}
-            >
-              🔧 Adjustments
-            </button>
           </div>
+    
 
-          {activeTab === 'adjust' && (
+          {activeTab === 'face' && (
             <div className="products-list">
-              <h3>Clothing & Body Fixes</h3>
+              <h3>Avatar & Face Customization</h3>
 
-              <div className="gender-selection" style={{ marginBottom: '20px' }}>
-                <h4>Body Type Selection</h4>
+              <div className="gender-selection" style={{ marginBottom: '20px', background: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
+                <h4>🧍 Body Type Selection</h4>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button
                     className={`filter-btn ${measurements.gender === 'male' ? 'active' : ''}`}
                     onClick={() => updateGender('male')}
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, padding: '10px' }}
                   >
                     👨 Male
                   </button>
                   <button
                     className={`filter-btn ${measurements.gender === 'female' ? 'active' : ''}`}
                     onClick={() => updateGender('female')}
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, padding: '10px' }}
                   >
                     👩 Female
                   </button>
                 </div>
               </div>
-
-              <div className="clothing-adjustment" style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
-                <h4>👕 Clothing Manual Fixes</h4>
-                <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '15px' }}>Use these to fix size and alignment issues.</p>
-
-                <div className="control-group" style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    Scale Multiplier <span>{clothingAdj.scale.toFixed(2)}x</span>
-                  </label>
-                  <input type="range" min="0.5" max="5.0" step="0.05" value={clothingAdj.scale}
-                    onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#007bff' }} />
-                </div>
-
-                <div className="control-group" style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    Horizontal (X) <span>{clothingAdj.x.toFixed(2)}</span>
-                  </label>
-                  <input type="range" min="-2.0" max="2.0" step="0.01" value={clothingAdj.x}
-                    onChange={(e) => setClothingAdj({ ...clothingAdj, x: parseFloat(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#007bff' }} />
-                </div>
-
-                <div className="control-group" style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    Vertical (Y) <span>{clothingAdj.y.toFixed(2)}</span>
-                  </label>
-                  <input type="range" min="-2.0" max="2.0" step="0.01" value={clothingAdj.y}
-                    onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#28a745' }} />
-                </div>
-
-                <div className="control-group" style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    Depth (Z) <span>{clothingAdj.z.toFixed(2)}</span>
-                  </label>
-                  <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.z}
-                    onChange={(e) => setClothingAdj({ ...clothingAdj, z: parseFloat(e.target.value) })}
-                    style={{ width: '100%', accentColor: '#dc3545' }} />
-                </div>
-
-                <button
-                  className="action-btn secondary"
-                  onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
-                  style={{ width: '100%', fontSize: '0.8rem' }}
-                >
-                  Reset Adjustments
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'face' && (
-            <div className="products-list">
-              <h3>Face Customization</h3>
 
               <div className="face-upload-section" style={{
                 background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px',
@@ -595,8 +579,90 @@ const VirtualTryOn = () => {
               )}
             </div>
 
+
             {/* Try-On Preview Area - PERSISTENT */}
             <div className="tryon-preview-container" style={{ position: 'relative', height: '650px', background: '#e9ecef', borderRadius: '12px' }}>
+
+              {/* Floating Clothing Fit Controls */}
+              {selectedProducts.length > 0 && (
+                <div className="clothing-adj-panel" style={{
+                  position: 'absolute', bottom: '10px', right: '10px', zIndex: 20,
+                  background: 'rgba(255,255,255,0.92)', padding: '12px 15px', borderRadius: '10px',
+                  border: '1px solid #ccc', width: '240px', boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                  backdropFilter: 'blur(6px)'
+                }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem' }}>🎛️ Fit Controls</h4>
+
+                  {/* Scale */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                      <span>📐 Size</span>
+                      <span>{clothingAdj.scale.toFixed(2)}</span>
+                    </label>
+                    <input type="range" min="0.1" max="3.0" step="0.05"
+                      value={clothingAdj.scale}
+                      onChange={e => setClothingAdj(p => ({ ...p, scale: parseFloat(e.target.value) }))}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  {/* Y — Up / Down */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                      <span>⬆️⬇️ Up / Down</span>
+                      <span>{clothingAdj.y.toFixed(2)}</span>
+                    </label>
+                    <input type="range" min="-2.0" max="2.0" step="0.05"
+                      value={clothingAdj.y}
+                      onChange={e => setClothingAdj(p => ({ ...p, y: parseFloat(e.target.value) }))}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  {/* Z — Forward / Backward */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                      <span>↔️ Depth</span>
+                      <span>{clothingAdj.z.toFixed(2)}</span>
+                    </label>
+                    <input type="range" min="-1.0" max="1.0" step="0.05"
+                      value={clothingAdj.z}
+                      onChange={e => setClothingAdj(p => ({ ...p, z: parseFloat(e.target.value) }))}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  {/* X — Left / Right */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                      <span>⬅️➡️ Side</span>
+                      <span>{clothingAdj.x.toFixed(2)}</span>
+                    </label>
+                    <input type="range" min="-1.0" max="1.0" step="0.05"
+                      value={clothingAdj.x}
+                      onChange={e => setClothingAdj(p => ({ ...p, x: parseFloat(e.target.value) }))}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                    <button
+                      className="action-btn secondary"
+                      onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
+                      style={{ flex: 1, padding: '5px 8px', fontSize: '0.8rem' }}
+                    >
+                      🔄 Reset
+                    </button>
+                    <button
+                      className="action-btn primary"
+                      onClick={saveAdjustments}
+                      style={{ flex: 1, padding: '5px 8px', fontSize: '0.8rem' }}
+                    >
+                      💾 Save
+                    </button>
+                  </div>
+                </div>
+              )}
               {isLoading ? (
                 <div className="loading-preview" style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)' }}>
                   <div className="spinner"></div>

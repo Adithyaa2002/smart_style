@@ -4,7 +4,6 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import AvatarViewer from "../components/AvatarViewer";
-import ARViewer from "../components/ARViewer";
 import { toast } from "react-toastify";
 import "./ProductDetails.css"; // We will create this next
 import axios from "axios";
@@ -24,10 +23,10 @@ const ProductDetails = () => {
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [relatedProducts, setRelatedProducts] = useState([]); // New State
     const [selectedSize, setSelectedSize] = useState(""); // Track user size choice
-    const [showAR, setShowAR] = useState(false); // New AR State
 
     // CLOTHING ADJUSTMENT STATE
-    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: 0, z: 0 });
+    // Reset default alignment visually now that algorithm dynamically scales to avatar body.
+    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: -0.09, z: 0.00 });
 
     // --- Review State & Handler ---
     const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
@@ -134,33 +133,6 @@ const ProductDetails = () => {
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
 
-                            {/* ADJUSTMENT SLIDERS */}
-                            <div className="clothing-fixes-overlay" style={{
-                                position: 'absolute', bottom: '10px', left: '10px', right: '10px',
-                                background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px',
-                                zIndex: 120, fontSize: '0.8rem'
-                            }}>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '5px' }}>
-                                    <label>Size:</label>
-                                    <input type="range" min="0.5" max="5.0" step="0.1" value={clothingAdj.scale}
-                                        onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
-                                        style={{ flex: 1 }} />
-                                    <span>{clothingAdj.scale.toFixed(1)}x</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <label>Up/Down:</label>
-                                    <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.y}
-                                        onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
-                                        style={{ flex: 1 }} />
-                                    <span>{clothingAdj.y.toFixed(2)}</span>
-                                </div>
-                                <button
-                                    onClick={() => setClothingAdj({ scale: 1.0, y: 0, z: 0 })}
-                                    style={{ width: '100%', marginTop: '5px', fontSize: '10px' }}
-                                >
-                                    Reset Fixes
-                                </button>
-                            </div>
                             <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
                         </div >
                     ) : (
@@ -365,13 +337,6 @@ const ProductDetails = () => {
                                 👗 Add to Combination Try-On
                             </button>
 
-                            {/* AR BUTTON */}
-                            <button
-                                style={{ width: '100%', padding: '12px', background: '#9c27b0', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', marginTop: '10px' }}
-                                onClick={() => setShowAR(true)}
-                            >
-                                🔍 View in AR (Mobile)
-                            </button>
                         </div>
                     )}
                 </div >
@@ -455,13 +420,6 @@ const ProductDetails = () => {
                 </div>
             </div>
 
-            {/* AR FULL SCREEN OVERLAY */}
-            {showAR && product.model3D && (
-                <ARViewer
-                    modelUrl={product.model3D.startsWith('http') ? product.model3D : `http://localhost:5000${product.model3D}`}
-                    onClose={() => setShowAR(false)}
-                />
-            )}
         </div >
     );
 };

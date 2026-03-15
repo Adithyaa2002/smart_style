@@ -1,0 +1,42 @@
+C:\Users\adithya\smartstyle-boutique\frontend\src\components\ARViewer.js
+  Line 1: 'useState' is defined but never used. (no-unused-vars)
+  Line 4: 'Environment' is defined but never used. (no-unused-vars)
+C:\Users\adithya\smartstyle-boutique\frontend\src\components\AvatarViewer.js
+  Line 4: 'Environment' is defined but never used. (no-unused-vars)
+  Line 32: 'lastLog' is assigned a value but never used. (no-unused-vars)
+  Line 42: 'standardChest' is assigned a value but never used. (no-unused-vars)
+  Line 43: 'standardWaist' is assigned a value but never used. (no-unused-vars)
+  Line 44: 'standardHips' is assigned a value but never used. (no-unused-vars)
+  Line 46: 'standardWeight' is assigned a value but never used. (no-unused-vars)
+  Line 402: React Hook useEffect has a missing dependency: 'onSceneDebug'. Either include it or remove the dependency array. If 'onSceneDebug' changes too often, find the parent component that defines it and wrap that definition in useCallback. (react-hooks/exhaustive-deps)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\AdminDashboard.js
+  Line 8: 'loading' is assigned a value but never used. (no-unused-vars)
+  Line 9: 'stats' is assigned a value but never used. (no-unused-vars)
+  Line 12: 'selectedOrder' is assigned a value but never used. (no-unused-vars)
+  Line 13: 'inventory' is assigned a value but never used. (no-unused-vars)
+  Line 14: 'inventoryLoading' is assigned a value but never used. (no-unused-vars)
+  Line 15: 'users' is assigned a value but never used. (no-unused-vars)
+  Line 16: 'usersLoading' is assigned a value but never used. (no-unused-vars)
+  Line 18: 'invSearchTerm' is assigned a value but never used. (no-unused-vars)
+  Line 18: 'setInvSearchTerm' is assigned a value but never used. (no-unused-vars)
+  Line 19: 'userSearchTerm' is assigned a value but never used. (no-unused-vars)
+  Line 19: 'setUserSearchTerm' is assigned a value but never used. (no-unused-vars)
+  Line 182: 'updateProductInline' is assigned a value but never used. (no-unused-vars)
+  Line 200: 'deleteProduct' is assigned a value but never used. (no-unused-vars)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\CustomerDashboard.js
+  Line 44: 'generatedMeasurements' is assigned a value but never used. (no-unused-vars)
+  Line 64: 'setSelectedClothing' is assigned a value but never used. (no-unused-vars)
+  Line 115: 'clearCart' is assigned a value but never used. (no-unused-vars)
+  Line 167: React Hook useEffect has a missing dependency: 'fetchProducts'. Either include it or remove the dependency array. (react-hooks/exhaustive-deps)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\Login.js
+  Line 144: The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md (jsx-a11y/anchor-is-valid)
+  Line 144: The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md (jsx-a11y/anchor-is-valid)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\ProductDetails.js
+  Line 22: 'overrideModel' is assigned a value but never used. (no-unused-vars)
+  Line 23: 'isDemoMode' is assigned a value but never used. (no-unused-vars)
+  Line 55: 'setMeasurements' is assigned a value but never used. (no-unused-vars)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\ResetPassword.js
+  Line 23: React Hook useEffect has a missing dependency: 'verifyToken'. Either include it or remove the dependency array. (react-hooks/exhaustive-deps)
+C:\Users\adithya\smartstyle-boutique\frontend\src\pages\VirtualTryOn.js
+  Line 1: 'useEffect' is defined but never used. (no-unused-vars)
+  Line 1: 'useRef' is defined but never used. (no-unused-vars)

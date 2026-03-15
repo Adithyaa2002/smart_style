@@ -7,20 +7,37 @@ const multer = require("multer");
 
 const router = express.Router();
 
-// --------------------- Multer Configuration ---------------------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
-});
+const { GridFsStorage } = require("multer-gridfs-storage");
+const mongoose = require("mongoose");
 
+// --------------------- GridFS Storage Configuration (Robust Alternative) ---------------------
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+// Helper to upload buffer to GridFS
+const uploadToGridFS = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "uploads"
+    });
+    const filename = Date.now() + "-" + file.originalname;
+    const uploadStream = bucket.openUploadStream(filename);
+    uploadStream.end(file.buffer);
+    uploadStream.on('finish', () => resolve(filename));
+    uploadStream.on('error', reject);
+  });
+};
+
 // --------------------- CREATE PRODUCT (Vendor) ---------------------
-// Changed to upload.fields to handle both image and model3D
 router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D', maxCount: 1 }]), async (req, res) => {
   try {
     const imageFile = req.files['image'] ? req.files['image'][0] : null;
     const model3DFile = req.files['model3D'] ? req.files['model3D'][0] : null;
+
+    // Manually upload files to GridFS
+    const imageFilename = await uploadToGridFS(imageFile);
+    const model3DFilename = await uploadToGridFS(model3DFile);
 
     let sizeChart = {};
     if (req.body.sizeChart) {
@@ -41,20 +58,17 @@ router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D
       sizes: Array.isArray(req.body.sizes) ? req.body.sizes : (req.body.sizes ? req.body.sizes.split(",").map(s => s.trim()) : []),
       colors: Array.isArray(req.body.colors) ? req.body.colors : (req.body.colors ? req.body.colors.split(",").map(c => c.trim()) : []),
       stock: req.body.stock,
-      image: imageFile ? `/uploads/${imageFile.filename}` : null,
-      model3D: model3DFile ? `/uploads/${model3DFile.filename}` : null,
+      image: imageFilename ? `/api/products/file/${imageFilename}` : null,
+      model3D: model3DFilename ? `/api/products/file/${model3DFilename}` : null,
       vendorId: req.body.vendorId,
       sizeChart: sizeChart
     };
 
-    console.log("REQ BODY:", req.body);
-    console.log("REQ FILES:", req.files);
-
     const product = new Product(productData);
     const saved = await product.save();
-
     res.status(201).json(saved);
   } catch (err) {
+    console.error("Create Product Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -265,46 +279,82 @@ router.get("/:id", async (req, res) => {
 });
 
 // --------------------- UPDATE PRODUCT ---------------------
-router.put("/:id", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D', maxCount: 1 }]), async (req, res) => {
-  try {
-    const { vendorId } = req.body;
-    const product = await Product.findById(req.params.id);
+router.put("/:id", (req, res) => {
+  const uploadMiddleware = upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D', maxCount: 1 }]);
 
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
-    // ✅ SECURITY CHECK
-    if (product.vendorId && product.vendorId !== vendorId) {
-      return res.status(403).json({ message: "Unauthorized: You do not own this product" });
+  uploadMiddleware(req, res, async (err) => {
+    if (err) {
+      console.error("❌ Multer/GridFS Error during Update:", err);
+      return res.status(400).json({ message: "File upload failed", error: err.message });
     }
 
-    const updateData = { ...req.body };
+    try {
+      const { vendorId } = req.body;
+      console.log(`🛠️ Incoming Update for ID: ${req.params.id}`);
+      console.log(`👤 Request vendorId: "${vendorId}"`);
 
-    // Handle optional file uploads during edit
-    const imageFile = req.files && req.files['image'] ? req.files['image'][0] : null;
-    const model3DFile = req.files && req.files['model3D'] ? req.files['model3D'][0] : null;
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        console.warn("🔍 Product not found in DB");
+        return res.status(404).json({ message: "Product not found" });
+      }
 
-    if (imageFile) {
-      updateData.image = `/uploads/${imageFile.filename}`;
-    }
-    if (model3DFile) {
-      updateData.model3D = `/uploads/${model3DFile.filename}`;
-    }
+      console.log(`📦 DB Product vendorId: "${product.vendorId}"`);
 
-    // Parse array fields if they come as strings from FormData
-    if (updateData.sizes && typeof updateData.sizes === 'string') {
-      updateData.sizes = updateData.sizes.split(",").map(s => s.trim());
-    }
-    if (updateData.colors && typeof updateData.colors === 'string') {
-      updateData.colors = updateData.colors.split(",").map(c => c.trim());
-    }
+      // ✅ SECURITY CHECK (Case-insensitive)
+      const pVendor = (product.vendorId || "").toLowerCase();
+      const rVendor = (vendorId || "").toLowerCase();
 
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-    });
-    res.json(updatedProduct);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+      if (pVendor && pVendor !== rVendor) {
+        console.warn(`🚫 Ownership Mismatch: ${pVendor} !== ${rVendor}`);
+        return res.status(403).json({ message: "Unauthorized: You do not own this product" });
+      }
+
+      const updateData = { ...req.body };
+
+      // Handle optional file uploads during edit (using buffers now)
+      if (req.files && req.files['image']) {
+        const imageFilename = await uploadToGridFS(req.files['image'][0]);
+        updateData.image = `/api/products/file/${imageFilename}`;
+        console.log("📸 New image uploaded:", imageFilename);
+      }
+      
+      if (req.files && req.files['model3D']) {
+        const model3DFilename = await uploadToGridFS(req.files['model3D'][0]);
+        updateData.model3D = `/api/products/file/${model3DFilename}`;
+        console.log("📦 New 3D model uploaded:", model3DFilename);
+      }
+
+      // Parse array fields if they come as strings from FormData
+      if (updateData.sizes && typeof updateData.sizes === 'string') {
+        updateData.sizes = updateData.sizes.split(",").map(s => s.trim()).filter(s => s);
+      }
+      if (updateData.colors && typeof updateData.colors === 'string') {
+        updateData.colors = updateData.colors.split(",").map(c => c.trim()).filter(c => c);
+      }
+
+      // Sync Size Chart
+      if (updateData.sizeChart && typeof updateData.sizeChart === 'string') {
+        try {
+          updateData.sizeChart = JSON.parse(updateData.sizeChart);
+          console.log("📏 Size Chart parsed successfully");
+        } catch (e) {
+          console.error("❌ Error parsing sizeChart during update:", e);
+        }
+      }
+
+      const updatedProduct = await Product.findByIdAndUpdate(req.params.id, updateData, {
+        new: true,
+        runValidators: true
+      });
+
+      console.log("✅ Product updated successfully");
+      res.json(updatedProduct);
+    } catch (err) {
+      console.error("🔥 Internal Update Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 });
 
 // --------------------- ADD REVIEW ---------------------
@@ -323,6 +373,48 @@ router.post("/reviews/:id", async (req, res) => {
 
     await product.save();
     res.status(201).json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --------------------- SAVE CLOTHING ADJUSTMENTS (Try-On UI) ---------------------
+router.patch("/:id/adjustments", async (req, res) => {
+  try {
+    const { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ } = req.body;
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { adjustmentScale, adjustmentX, adjustmentY, adjustmentZ },
+      { new: true }
+    );
+    if (!product) return res.status(404).json({ message: "Product not found" });
+    res.json({ success: true, product });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --------------------- GET FILE FROM GRIDFS ---------------------
+router.get("/file/:filename", async (req, res) => {
+  try {
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "uploads",
+    });
+
+    const files = await bucket.find({ filename: req.params.filename }).toArray();
+    if (!files || files.length === 0) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    // Set content type for common files
+    const filename = req.params.filename.toLowerCase();
+    if (filename.endsWith('.glb')) res.set('Content-Type', 'model/gltf-binary');
+    else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) res.set('Content-Type', 'image/jpeg');
+    else if (filename.endsWith('.png')) res.set('Content-Type', 'image/png');
+    else if (filename.endsWith('.webp')) res.set('Content-Type', 'image/webp');
+
+    const downloadStream = bucket.openDownloadStreamByName(req.params.filename);
+    downloadStream.pipe(res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

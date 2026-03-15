@@ -9,7 +9,7 @@ const MaintenanceGuard = ({ children, user }) => {
     useEffect(() => {
         const checkMaintenance = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/settings');
+                const response = await fetch(`http://${window.location.hostname}:5000/api/settings`);
                 const data = await response.json();
                 setMaintenanceMode(data.maintenanceMode || false);
             } catch (error) {

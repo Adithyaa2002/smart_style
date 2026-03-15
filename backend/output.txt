@@ -1,0 +1,15 @@
+﻿PRODUCTS_LIST_START
+Product: Majestic Man Men Classic Slim Fit Pure Cotton Casual Shirt | Vendor: adithyaa967@gmail.com | Cat: Shirts
+Product: Baby Girls Poly Silk Party Dress | Soft Stylish Frock with Tulle Mesh Overlay | Elegant Birthday & Special Occasion Outfit for Kids | Vendor: adithyaa967@gmail.com | Cat: Dresses
+Product: Red bodycon | Vendor: adithyaa967@gmail.com | Cat: Topwear
+Product: Printed Shirt | Vendor: adithyaa967@gmail.com | Cat: Shirts
+Product: Bodycon dress Kneelength | Vendor: adithyaa967@gmail.com | Cat: Topwear
+Product: dress | Vendor: hibanm@gmail.com | Cat: Topwear
+Product: Blue Summer Dress | Vendor: vendor@test.com | Cat: Topwear
+Product: Blue Summer Dress | Vendor: vendor@test.com | Cat: Topwear
+Product: short dress | Vendor: adithyaa967@gmail.com | Cat: Topwear
+Product: tshirt | Vendor: adithyaa967@gmail.com | Cat: Topwear
+Product: gown | Vendor: adithyaa967@gmail.com | Cat: Topwear
+Product: pant | Vendor: adithyaa967@gmail.com | Cat: Bottomwear
+Product: pant | Vendor: adithyaa967@gmail.com | Cat: Bottomwear
+PRODUCTS_LIST_END

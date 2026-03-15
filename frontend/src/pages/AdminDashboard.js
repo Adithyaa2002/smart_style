@@ -42,7 +42,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/analytics/overview?t=${Date.now()}`);
+        const response = await fetch(`http://${window.location.hostname}:5000/api/analytics/overview?t=${Date.now()}`);
         const result = await response.json();
         if (result.success) {
           setStats(result.data);
@@ -63,7 +63,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
     const fetchAllOrders = async () => {
       setOrdersLoading(true);
       try {
-        const response = await fetch('http://localhost:5000/api/orders');
+        const response = await fetch(`http://${window.location.hostname}:5000/api/orders`);
         const data = await response.json();
         setAllOrders(Array.isArray(data) ? data : (data.orders || []));
       } catch (error) {
@@ -82,7 +82,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
     const fetchInventory = async () => {
       setInventoryLoading(true);
       try {
-        const response = await fetch('http://localhost:5000/api/products');
+        const response = await fetch(`http://${window.location.hostname}:5000/api/products`);
         const data = await response.json();
         setInventory(data);
       } catch (error) {
@@ -101,7 +101,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
     const fetchUsers = async () => {
       setUsersLoading(true);
       try {
-        const response = await fetch('http://localhost:5000/api/auth/users');
+        const response = await fetch(`http://${window.location.hostname}:5000/api/auth/users`);
         const data = await response.json();
         if (data.success) {
           setUsers(data.users);
@@ -121,7 +121,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/settings');
+        const response = await fetch(`http://${window.location.hostname}:5000/api/settings`);
         const data = await response.json();
         if (data) setStoreSettings(data);
       } catch (error) {
@@ -133,7 +133,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
 
   useEffect(() => {
     if (activeTab === 'promotions') {
-      fetch('http://localhost:5000/api/banners')
+      fetch(`http://${window.location.hostname}:5000/api/banners`)
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) setBanners(data);
@@ -150,7 +150,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   const [reviews, setReviews] = useState([]);
   useEffect(() => {
     if (activeTab === 'reviews') {
-      fetch('http://localhost:5000/api/reviews/all')
+      fetch(`http://${window.location.hostname}:5000/api/reviews/all`)
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) setReviews(data);
@@ -162,7 +162,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`http://${window.location.hostname}:5000/api/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -182,7 +182,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
 
   const updateProductInline = async (productId, field, value) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}`, {
+      const response = await fetch(`http://${window.location.hostname}:5000/api/products/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -201,7 +201,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   const deleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}`, {
+      const response = await fetch(`http://${window.location.hostname}:5000/api/products/${productId}`, {
         method: 'DELETE'
       });
       const result = await response.json();
@@ -234,7 +234,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/settings', {
+      const response = await fetch(`http://${window.location.hostname}:5000/api/settings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -575,7 +575,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                   formData.append('image', file);
 
                   try {
-                    await fetch('http://localhost:5000/api/banners', { method: 'POST', body: formData });
+                    await fetch(`http://${window.location.hostname}:5000/api/banners`, { method: 'POST', body: formData });
                     alert("✅ Banner Uploaded");
                     // Trigger refresh
                     setActiveTab('overview');
@@ -589,14 +589,14 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                 <div className="banner-list" style={{ display: 'grid', gap: '10px' }}>
                   {banners.map(b => (
                     <div key={b._id} style={{ border: '1px solid #eee', padding: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img src={`http://localhost:5000${b.image}`} style={{ width: '100px', height: '50px', objectFit: 'cover' }} alt="" />
+                      <img src={`http://${window.location.hostname}:5000${b.image}`} style={{ width: '100px', height: '50px', objectFit: 'cover' }} alt="" />
                       <div style={{ flex: 1 }}>
                         <strong>{b.title}</strong>
                         <p style={{ fontSize: '0.8rem', color: '#666' }}>{b.link}</p>
                       </div>
                       <button className="delete-icon-btn" onClick={async () => {
                         if (!window.confirm("Delete?")) return;
-                        await fetch(`http://localhost:5000/api/banners/${b._id}`, { method: 'DELETE' });
+                        await fetch(`http://${window.location.hostname}:5000/api/banners/${b._id}`, { method: 'DELETE' });
                         setBanners(prev => prev.filter(x => x._id !== b._id));
                       }}>🗑️</button>
                     </div>
@@ -620,7 +620,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                       <div key={r.reviewId} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', background: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                            <img src={`http://localhost:5000${r.productImage}`} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} alt="" />
+                            <img src={`http://${window.location.hostname}:5000${r.productImage}`} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} alt="" />
                             <div>
                               <strong>{r.productName}</strong>
                               <div style={{ fontSize: '0.85rem', color: '#666' }}>By: {r.user} | {new Date(r.date).toLocaleDateString()}</div>
@@ -635,7 +635,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                             onClick={async () => {
                               if (!window.confirm("Delete this review?")) return;
                               try {
-                                await fetch(`http://localhost:5000/api/reviews/${r.productId}/${r.reviewId}`, { method: 'DELETE' });
+                                await fetch(`http://${window.location.hostname}:5000/api/reviews/${r.productId}/${r.reviewId}`, { method: 'DELETE' });
                                 setReviews(prev => prev.filter(x => x.reviewId !== r.reviewId));
                               } catch (e) { alert("Failed to delete"); }
                             }}

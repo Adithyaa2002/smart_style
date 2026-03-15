@@ -1,11 +1,12 @@
 import os
 import sys
 import json
-import cv2
-import mediapipe as mp
+import cv2  # type: ignore[import-unresolved]
+import mediapipe as mp  # type: ignore[import-unresolved]
+import numpy as np  # type: ignore[import-unresolved]
 import math
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
+from mediapipe.tasks import python  # type: ignore[import-unresolved]
+from mediapipe.tasks.python import vision  # type: ignore[import-unresolved]
 
 def analyze_face(image_path):
     # Path to the model file
@@ -188,11 +189,11 @@ def analyze_face(image_path):
                              target_r = 230
                              if r < target_r:
                                  scale = target_r / r
-                                 r, g, b = [min(255, x * scale) for x in [r, g, b]]
+                                 r, g, b = [min(float(255), x * scale) for x in [r, g, b]]
 
                     # --- FINAL SUBTLE REDUCTION (User Request) ---
                     # Reduce intensity by ~2% for a more grounded look
-                    best_rgb = [max(0, x * 0.98) for x in [r, g, b]]
+                    best_rgb = [max(float(0), x * 0.98) for x in [r, g, b]]
 
                     # Final Hex
                     skin_hex = "#{:02x}{:02x}{:02x}".format(int(best_rgb[0]), int(best_rgb[1]), int(best_rgb[2]))
@@ -235,27 +236,28 @@ def analyze_face(image_path):
                         
                         # Create a radial gradient mask for feathering
                         h_resized, w_resized = face_rgba.shape[:2]
-                        mask = np.zeros((h_resized, w_resized), dtype=np.float32)
-                        center = (w_resized // 2, h_resized // 2)
+                        mask = np.zeros((h_resized, w_resized), dtype=np.float32)  # type: ignore[attr-defined]
+                        center_x = w_resized // 2
+                        center_y = h_resized // 2
                         radius = min(h_resized, w_resized) // 2
-                        
+
                         for y_mask in range(h_resized):
                             for x_mask in range(w_resized):
-                                dist_mask = np.sqrt((x_mask - center[0])**2 + (y_mask - center[1])**2)
+                                dist_mask = math.sqrt((x_mask - center_x) ** 2 + (y_mask - center_y) ** 2)
                                 if dist_mask < radius * 0.7:
                                     mask[y_mask, x_mask] = 1.0
                                 elif dist_mask < radius:
                                     mask[y_mask, x_mask] = 1.0 - (dist_mask - radius * 0.7) / (radius * 0.3)
                                 else:
                                     mask[y_mask, x_mask] = 0.0
-                        
+
                         # Apply mask to alpha channel
-                        face_rgba[:, :, 3] = (mask * 255).astype(np.uint8)
+                        face_rgba[:, :, 3] = (mask * 255).astype(np.uint8)  # type: ignore[attr-defined]
                         
                         # Save as PNG
                         base_path = os.path.splitext(image_path)[0]
-                        texture_filename = os.path.basename(base_path) + "_texture.png"
-                        texture_save_path = base_path + "_texture.png"
+                        texture_filename = os.path.basename(str(base_path)) + "_texture.png"
+                        texture_save_path = str(base_path) + "_texture.png"
                         
                         cv2.imwrite(texture_save_path, face_rgba)
                         print(f"DEBUG: Saved Feathered Texture to {texture_save_path}", file=sys.stderr)

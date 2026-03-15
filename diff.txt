@@ -1,0 +1,389 @@
+diff --git a/frontend/src/components/AvatarViewer.js b/frontend/src/components/AvatarViewer.js
+index d09fee4..c21e3ea 100644
+--- a/frontend/src/components/AvatarViewer.js
++++ b/frontend/src/components/AvatarViewer.js
+@@ -1,7 +1,7 @@
+ import * as THREE from "three";
+ import React, { useEffect } from "react";
+ import { Canvas } from "@react-three/fiber";
+-import { OrbitControls, useGLTF, Environment, ContactShadows, Html } from "@react-three/drei";
++import { OrbitControls, useGLTF, ContactShadows, Html } from "@react-three/drei";
+ import { useFrame } from "@react-three/fiber";
+ 
+ function clamp01(val) {
+@@ -28,8 +28,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+ 
+   const bones = React.useRef({});
+ 
+-  // Debug throttling
+-  const lastLog = React.useRef(0);
++
+ 
+   // Move scaling to useFrame to ensure it overrides any animations every frame
+   useFrame((state) => {
+@@ -38,13 +37,6 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+     // Use Ref to prevent closure staleness
+     const currentMeas = measurementsRef.current;
+ 
+-    // Default Measurements
+-    const standardChest = 34;
+-    const standardWaist = 28;
+-    const standardHips = 38;
+-    // Standard Weight ~ 60kg.
+-    const standardWeight = 60;
+-
+ 
+     // --- MEASUREMENT LOGIC ---
+     const toInches = (val) => {
+@@ -288,6 +280,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+         setKey("measure-bust-circ-incr", chestWeight);      // Chest/Bust
+         setKey("measure-waist-circ-incr", waistWeight);     // Waist
+         setKey("measure-hips-circ-incr", hipWeight);        // Hips
++        setKey("hip-scale-horiz-incr", hipWeight);          // Alternative Hips keyword
+         setKey("measure-thigh-circ-incr", thighWeight);     // Thigh
+         setKey("measure-calf-circ-incr", calfWeight);       // Calf (New)
+         setKey("measure-knee-circ-incr", thighWeight * 0.5);// Knee (New - smoothed)
+@@ -311,9 +304,9 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+ 
+         // IDENTIFY PARTS
+         // ??? Expanded keywords to catch more clothing types
+-        const clothingKeywords = ["bra", "pant", "cloth", "dress", "under", "bikini", "sport", "shirt", "jeans", "trousers", "001", "outfit", "top", "shorts"];
++        const clothingKeywords = ["bra", "pant", "cloth", "dress", "under", "bikini", "sport", "shirt", "jeans", "trousers", "001", "outfit", "top", "shorts", "tube", "denim", "jean", "skirt", "vest", "tank", "bottoms", "tops"];
+         const isClothing = clothingKeywords.some(k => name.includes(k));
+-        const isBodyPart = ["eye", "teeth", "tongue", "lash", "human", "body", "skin"].some(k => name.includes(k));
++        const isBodyPart = ["eye", "teeth", "tongue", "lash", "human", "body", "skin", "base"].some(k => name.includes(k)) && !isClothing;
+ 
+         // ??? HIDE BASE CLOTHES LOGIC RESTORED
+         if (hideBaseClothes && isClothing && !isBodyPart) {
+@@ -338,7 +331,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+           child.material.transparent = false; // FORCE OPAQUE
+           child.material.alphaTest = 0;
+           child.material.polygonOffset = true;
+-          child.material.polygonOffsetFactor = -4.0; // Aggressive priority
++          child.material.polygonOffsetFactor = -1.0; // Lower priority (Base clothes)
+           child.material.polygonOffsetUnits = -4.0;
+         }
+ 
+@@ -399,7 +392,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+       onSceneDebug(foundSkeleton ? "SKELETON FOUND!\n" + dump : "NO SKELETON FOUND.\n" + dump);
+     }
+ 
+-  }, [scene, onSkeletonLoaded]);
++  }, [scene, onSkeletonLoaded, onSceneDebug]);
+ 
+   return <primitive object={scene} position={[0, -0.6, 0]} rotation={[0, 0, 0]} />;
+ }
+@@ -407,7 +400,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
+ // -----------------------------------------------------
+ // Clothing Model Component (Synced Logic)
+ // -----------------------------------------------------
+-const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true, adjustmentScale = 1, adjustmentY = 0, adjustmentZ = 0, isMale = false }) => {
++const ClothingModel = ({ url, avatarSkeleton, measurements, selectedSize, isFixedSize = true, adjustmentScale = 1, adjustmentY = 0, adjustmentZ = 0, isMale = false }) => {
+   const { scene } = useGLTF(url);
+ 
+   // Ref to avoid stale closures in useFrame
+@@ -425,10 +418,17 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true,
+       if (child.isMesh) {
+         child.renderOrder = 100; // Force on top
+         child.material.side = THREE.DoubleSide;
++        child.material.transparent = false; // Force Opaque to prevent depth sorting bugs
++        child.material.alphaTest = 0.5; // Allow texture cutouts (rips/lace) to work with Z-buffer
+         child.material.depthWrite = true;
+         child.material.polygonOffset = true;
+-        child.material.polygonOffsetFactor = -2.0; // Reduced offset slightly
+-        child.userData.hasInflated = true; // Prevent internal double-scaling
++        child.material.polygonOffsetFactor = -5.0; // High priority (Draws ON TOP of base clothes)
++
++        // Auto-inflate clothing slightly to avoid clipping with the skin
++        if (!child.userData.hasInflated) {
++          child.scale.multiplyScalar(1.02); // 2% larger bounding box
++          child.userData.hasInflated = true;
++        }
+ 
+         // Sync Skeleton
+         if (child.isSkinnedMesh && child.skeleton) {
+@@ -567,9 +567,20 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true,
+     const BASE_SCALE = isMale ? 3.8 : 3.5;
+ 
+     // We apply this scale to the clothing root so it matches the avatar root size.
+-    // We DO NOT add extra "widthFactor" or "bulkFactor" here because the bones (which we bound to)
+-    // are ALREADY scaled by the AvatarModel logic (hipsRatio, waistRatio, etc).
+-    scene.scale.set(BASE_SCALE, BASE_SCALE, BASE_SCALE);
++    // 3. MICRO-SCALE BOOST (1.005x)
++    // Prevents Z-fighting by ensuring clothing is slightly outside the body mesh.
++    let sizeBoost = 1.0;
++    if (selectedSize === 'S') sizeBoost = 0.95;
++    if (selectedSize === 'L') sizeBoost = 1.05;
++    if (selectedSize === 'XL') sizeBoost = 1.10;
++    const SCALE_BOOST = 1.005 * sizeBoost;
++
++    // Apply user adjustmentScale
++    const targetScale = BASE_SCALE * SCALE_BOOST * adjustmentScale;
++    scene.scale.set(targetScale, targetScale, targetScale);
++
++    // Dynamic Position Fix: Apply the offset directly in the frame loop so React state changes are respected immediately.
++    scene.position.set(0, -0.6 + adjustmentY, adjustmentZ);
+ 
+     // 2. MORPH TARGETS (1:1 Sync)
+     // Calculate weights exactly like AvatarModel
+@@ -609,6 +620,7 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true,
+         setKey("measure-bust-circ-incr", chestW);
+         setKey("measure-waist-circ-incr", waistW);
+         setKey("measure-hips-circ-incr", hipsW);
++        setKey("hip-scale-horiz-incr", hipsW);
+         setKey("measure-thigh-circ-incr", thighW);
+         setKey("measure-calf-circ-incr", calfW);
+         setKey("measure-knee-circ-incr", thighW * 0.5);
+@@ -617,6 +629,23 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true,
+         // Legacy / Backup
+         setKey("breast-volume-vert-up", chestW);
+         setKey("BreastSize", chestW);
++
++        // Apply Direct Size Shapekeys explicitly authored for clothing
++        if (selectedSize) {
++          const lowSize = selectedSize.toLowerCase();
++          for (const key in child.morphTargetDictionary) {
++            const lowerKey = key.toLowerCase();
++            // Turn off all custom size shape keys first:
++            if (["s", "m", "l", "xl", "small", "medium", "large", "extralarge", "size_s", "size_m", "size_l", "size_xl"].includes(lowerKey)) {
++              child.morphTargetInfluences[child.morphTargetDictionary[key]] = 0;
++              // Turn on the matching one
++              if (lowSize === 's' && ['s', 'small', 'size_s'].includes(lowerKey)) setKey(key, 1);
++              if (lowSize === 'm' && ['m', 'medium', 'size_m'].includes(lowerKey)) setKey(key, 1);
++              if (lowSize === 'l' && ['l', 'large', 'size_l'].includes(lowerKey)) setKey(key, 1);
++              if (lowSize === 'xl' && ['xl', 'extralarge', 'size_xl'].includes(lowerKey)) setKey(key, 1);
++            }
++          }
++        }
+       }
+     });
+   });
+@@ -624,7 +653,6 @@ const ClothingModel = ({ url, avatarSkeleton, measurements, isFixedSize = true,
+   return (
+     <primitive
+       object={scene}
+-      position={[0, -0.6, 0]} // Match AvatarModel position
+       rotation={[0, 0, 0]}
+     />
+   );
+@@ -634,15 +662,80 @@ const CAMERA_POS = [0, 3.0, 11.0]; // Panning UP further (Y=3.0) to push avatar
+ const CONTROLS_TARGET = [0, 3.0, 0]; // Look at space well above head
+ const LIGHT_POS = [5, 10, 5];
+ 
+-export default function AvatarViewer({ measurements, clothingModelUrl, faceParams, modelUrl = "/models/human_base.glb" }) {
++export default function AvatarViewer({ measurements, clothingModelUrl, faceParams, sizeChartData = null, availableSizes = ['S', 'M', 'L', 'XL'], initialSize = 'M', modelUrl = "/models/human_base.glb" }) {
+   const [avatarSkeleton, setAvatarSkeleton] = React.useState(null);
+   const [sceneDump, setSceneDump] = React.useState("Analyzing...");
+   const [showDebug, setShowDebug] = React.useState(false);
+ 
++  // Local state for clothing URL (to allow server-side optimization override)
++  const [localClothingUrl, setLocalClothingUrl] = React.useState(clothingModelUrl);
++  const [isOptimizing, setIsOptimizing] = React.useState(false);
++
++  useEffect(() => {
++    setLocalClothingUrl(clothingModelUrl);
++  }, [clothingModelUrl]);
++
++  const handleServerOptimization = async () => {
++    if (!localClothingUrl) return;
++
++    setIsOptimizing(true);
++    try {
++      // Extract filename from URL if possible, or send full URL
++      // The backend expects the file to be in backend/uploads for now
++
++      const response = await fetch('http://localhost:5001/fit-clothing', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          clothingUrl: localClothingUrl,
++          measurements: measurements
++        })
++      });
++
++      const data = await response.json();
++      if (data.status === 'success' && data.processedUrl) {
++        console.log("Optimization successful:", data.processedUrl);
++        setLocalClothingUrl(data.processedUrl);
++      } else {
++        console.error("Optimization failed:", data);
++        alert("Optimization failed: " + (data.error || "Unknown error"));
++      }
++    } catch (e) {
++      console.error("Error calling optimization server:", e);
++      alert("Could not connect to optimization server. Is it running on port 5001?");
++    } finally {
++      setIsOptimizing(false);
++    }
++  };
++
+   // ADJUSTMENT STATES
+-  const [scaleMult, setScaleMult] = React.useState(1.25);
+-  const [offsetY, setOffsetY] = React.useState(0);
+-  const [offsetZ, setOffsetZ] = React.useState(0);
++  const [scaleMult, setScaleMult] = React.useState(1.18);
++  const [offsetY, setOffsetY] = React.useState(2.20);
++  const [offsetZ, setOffsetZ] = React.useState(0.08);
++
++  // --- NEW: CLOTHING SIZE LOGIC ---
++  const [selectedSize, setSelectedSize] = React.useState(initialSize || (availableSizes && availableSizes[0]) || 'M');
++
++  const SIZE_CHARTS = sizeChartData && Object.keys(sizeChartData).length > 0 ? sizeChartData : {
++    'S': { chest: 34, waist: 26, hips: 36, shoulders: 14, thigh: 20 },
++    'M': { chest: 36, waist: 28, hips: 38, shoulders: 15, thigh: 21 },
++    'L': { chest: 38, waist: 30, hips: 40, shoulders: 16, thigh: 22 },
++    'XL': { chest: 42, waist: 34, hips: 44, shoulders: 17, thigh: 24 }
++  };
++  const clothingMeasurements = SIZE_CHARTS[selectedSize] || Object.values(SIZE_CHARTS)[0]; // Fallback to first if mismatch
++
++  // Fit Calculator Overlay
++  const calculateFit = () => {
++    if (!measurements || !localClothingUrl || !clothingMeasurements || !clothingMeasurements.chest) return null;
++    const userChest = Number(measurements.chest) || 36;
++    const dressChest = Number(clothingMeasurements.chest);
++    const diff = dressChest - userChest;
++
++    if (diff < -1) return { text: `Too tight! (${Math.abs(diff)}" smaller than your chest)`, color: '#ff4444' };
++    if (diff > 1.5) return { text: `Too loose! (${diff}" larger than your chest)`, color: '#ffaa00' };
++    return { text: "Perfect Fit!", color: '#44ff44' };
++  };
++  const fitStatus = calculateFit();
+ 
+   // Determine Gender for Layout/Logic
+   const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("male"));
+@@ -668,20 +761,94 @@ export default function AvatarViewer({ measurements, clothingModelUrl, faceParam
+   return (
+     <div style={{ width: "100%", height: "100%", position: "relative" }}>
+       {/* Helper Toggle */}
++      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
++        <button
++          onClick={() => setShowDebug(!showDebug)}
++          style={{ padding: '5px 10px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
++        >
++          {showDebug ? "Hide Align Tools" : "Fix Alignment"}
++        </button>
++
++        {showDebug && (
++          <div style={{ background: 'rgba(0,0,0,0.8)', padding: '10px', borderRadius: '8px', color: 'white', width: '220px', boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
++            <div style={{ marginBottom: '10px' }}>
++              <label>Scale: {scaleMult.toFixed(2)}</label>
++              <input type="range" min="0.5" max="2.0" step="0.01" value={scaleMult} onChange={e => setScaleMult(parseFloat(e.target.value))} style={{ width: '100%' }} />
++            </div>
++            <div style={{ marginBottom: '10px' }}>
++              <label>Height (Y): {offsetY.toFixed(2)}</label>
++              <input type="range" min="-2.0" max="4.0" step="0.05" value={offsetY} onChange={e => setOffsetY(parseFloat(e.target.value))} style={{ width: '100%' }} />
++            </div>
++            <div style={{ marginBottom: '10px' }}>
++              <label>Depth (Z): {offsetZ.toFixed(2)}</label>
++              <input type="range" min="-1.0" max="1.0" step="0.05" value={offsetZ} onChange={e => setOffsetZ(parseFloat(e.target.value))} style={{ width: '100%' }} />
++            </div>
++            <small>Adjust these to align the clothing model to the body.</small>
++          </div>
++        )}
++      </div>
+ 
+       {/* DOWNLOAD BUTTON */}
+-      <button
+-        onClick={handleDownload}
+-        style={{
+-          position: "absolute", top: 20, right: 20, zIndex: 110,
+-          background: "#333", color: "#fff", border: "none",
+-          padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
+-          fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+-          boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+-        }}
+-      >
+-        ???? Save Look
+-      </button>
++      <div style={{ position: "absolute", top: 20, right: 20, zIndex: 110, display: "flex", gap: "10px" }}>
++
++        {localClothingUrl && (
++          <button
++            onClick={handleServerOptimization}
++            style={{
++              background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
++              padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
++              fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
++              boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
++            }}
++          >
++            {isOptimizing ? "??? Fitting..." : "??? Perfect Fit"}
++          </button>
++        )}
++
++        <button
++          onClick={handleDownload}
++          style={{
++            background: "#333", color: "#fff", border: "none",
++            padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
++            fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
++            boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
++          }}
++        >
++          ???? Save Look
++        </button>
++      </div>
++
++      {/* SIZE SELECTOR & FIT STATUS */}
++      {localClothingUrl && (
++        <div style={{ position: "absolute", bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 110, display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
++
++          {/* Fit Status Badge */}
++          {fitStatus && (
++            <div style={{ background: "rgba(0,0,0,0.7)", color: fitStatus.color, padding: "8px 16px", borderRadius: "20px", fontWeight: "bold", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
++              {fitStatus.text}
++            </div>
++          )}
++
++          {/* Size Picker */}
++          <div style={{ display: "flex", gap: "10px", background: "rgba(255,255,255,0.9)", padding: "10px 20px", borderRadius: "30px", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
++            <span style={{ fontWeight: "bold", alignSelf: "center", marginRight: "10px", color: '#333' }}>Select Size:</span>
++            {(availableSizes && availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL']).map(size => (
++              <button
++                key={size}
++                onClick={() => setSelectedSize(size)}
++                style={{
++                  width: "40px", height: "40px", borderRadius: "50%", border: "none",
++                  background: selectedSize === size ? "#2196F3" : "#e0e0e0",
++                  color: selectedSize === size ? "white" : "#333",
++                  fontWeight: "bold", cursor: "pointer", transition: "all 0.2s"
++                }}
++              >
++                {size}
++              </button>
++            ))}
++          </div>
++        </div>
++      )}
+ 
+       {showDebug && (
+         <div style={{
+@@ -708,14 +875,15 @@ export default function AvatarViewer({ measurements, clothingModelUrl, faceParam
+               onSkeletonLoaded={handleSkeletonLoaded}
+               onSceneDebug={setSceneDump}
+               // ??? Pass hideBaseClothes prop
+-              hideBaseClothes={!!clothingModelUrl}
++              hideBaseClothes={!!localClothingUrl}
+             />
+ 
+-            {clothingModelUrl && (
++            {localClothingUrl && (
+               <ClothingModel
+-                url={clothingModelUrl}
++                url={localClothingUrl}
+                 avatarSkeleton={avatarSkeleton}
+-                measurements={measurements}
++                measurements={clothingMeasurements}
++                selectedSize={selectedSize}
+                 isFixedSize={false}
+                 adjustmentScale={scaleMult}
+                 adjustmentY={offsetY}
+diff --git a/frontend/src/pages/VirtualTryOn.js b/frontend/src/pages/VirtualTryOn.js
+index 3b3e3c5..1a92293 100644
+--- a/frontend/src/pages/VirtualTryOn.js
++++ b/frontend/src/pages/VirtualTryOn.js
+@@ -1,3 +1,4 @@
++/* eslint-disable no-unused-vars */
+ import React, { useState, useEffect, useRef } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import AvatarViewer from '../components/AvatarViewer';

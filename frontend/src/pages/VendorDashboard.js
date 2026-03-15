@@ -6,6 +6,15 @@ import "./VendorDashboard.css";
 import { toast } from "react-toastify";
 
 
+const CATEGORY_MEASUREMENTS = {
+  "Topwear": ["Chest", "Waist", "Hips", "Length / Height", "Shoulders"],
+  "Bottomwear": ["Waist", "Hips", "Thigh", "Inseam", "Outseam"],
+  "Dresses": ["Chest", "Waist", "Hips", "Length / Height", "Shoulders"],
+  "Footwear": ["US Size", "UK Size", "EU Size", "Foot Length"],
+  "Accessories": ["Length", "Width", "Circumference"],
+  "Innerwear": ["Waist", "Chest", "Hips"]
+};
+
 const VendorDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
 
@@ -192,6 +201,7 @@ const VendorDashboard = ({ user, onLogout }) => {
   const handleSaveEdit = async () => {
     try {
       const formData = new FormData();
+      formData.append("vendorId", vendorUser.email || vendorUser.name || "");
 
       // Fields to sync
       const fields = ["name", "price", "description", "category", "gender", "brand", "stock"];
@@ -200,9 +210,6 @@ const VendorDashboard = ({ user, onLogout }) => {
           formData.append(f, editingProduct[f]);
         }
       });
-
-      // Vendor/Security field
-      formData.append("vendorId", vendorUser.email);
 
       // Handle Arrays (Backend handles strings or can split them)
       if (editingProduct.sizes) {
@@ -224,11 +231,14 @@ const VendorDashboard = ({ user, onLogout }) => {
         formData.append("image", editingProduct.newImage);
       }
 
+      // Sync Size Chart
+      if (editingProduct.sizeChart) {
+        formData.append("sizeChart", JSON.stringify(editingProduct.sizeChart));
+      }
+
       const res = await axios.put(
         `http://localhost:5000/api/products/${editingProduct._id}`,
-        formData,
-        // Removed manual Content-Type: multipart/form-data. 
-        // Axios 1.x handles FormData automatically and setting it manually often breaks the 'boundary' string.
+        formData
       );
 
       setProducts(
@@ -295,7 +305,11 @@ const VendorDashboard = ({ user, onLogout }) => {
                       Stock: {p.stock} {p.stock < 5 && '⚠️ Low Stock!'}
                     </p>
 
-                    <button onClick={() => setEditingProduct(p)} className="edit-btn">
+                    <button onClick={() => {
+                      console.log("🛠️ Editing Product:", p);
+                      console.log("📏 Size Chart:", p.sizeChart);
+                      setEditingProduct(p);
+                    }} className="edit-btn">
                       Edit
                     </button>
                     <button
@@ -460,6 +474,7 @@ const VendorDashboard = ({ user, onLogout }) => {
                   <option value="" disabled>Select Category</option>
                   <option value="Topwear">Topwear</option>
                   <option value="Bottomwear">Bottomwear</option>
+                  <option value="Dresses">Dresses</option>
                   <option value="Footwear">Footwear</option>
                   <option value="Accessories">Accessories</option>
                   <option value="Innerwear">Innerwear</option>
@@ -559,37 +574,42 @@ const VendorDashboard = ({ user, onLogout }) => {
               {(Array.isArray(newProduct.sizes) && newProduct.sizes.length > 0) && (
                 <div className="size-chart-section" style={{ marginTop: '15px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' }}>
                   <h4>📏 Size Chart Details (Inches)</h4>
-                  <p style={{ fontSize: '12px', color: '#666' }}>Enter measurements for each size to help customers fit better.</p>
+                  <p style={{ fontSize: '12px', color: '#666' }}>Enter measurements for Each Size ( {newProduct.category || "General"} Category ).</p>
 
-                  {newProduct.sizes.map(size => (
-                    <div key={size} style={{ marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                      <strong style={{ display: 'block', marginBottom: '5px' }}>Size: {size}</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                        {['Chest', 'Waist', 'Hips', 'Length', 'Shoulders', 'Thigh'].map(metric => (
-                          <input
-                            key={metric}
-                            type="text"
-                            placeholder={metric}
-                            value={newProduct.sizeChart?.[size]?.[metric.toLowerCase()] || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setNewProduct(prev => ({
-                                ...prev,
-                                sizeChart: {
-                                  ...prev.sizeChart,
-                                  [size]: {
-                                    ...prev.sizeChart?.[size],
-                                    [metric.toLowerCase()]: val
-                                  }
-                                }
-                              }));
-                            }}
-                            style={{ fontSize: '12px', padding: '5px' }}
-                          />
-                        ))}
+                  {newProduct.sizes.map(size => {
+                    const metrics = CATEGORY_MEASUREMENTS[newProduct.category] || ['Chest', 'Waist', 'Hips', 'Length / Height', 'Shoulders', 'Thigh'];
+                    return (
+                      <div key={size} style={{ marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                        <strong style={{ display: 'block', marginBottom: '5px' }}>Size: {size}</strong>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '8px' }}>
+                          {metrics.map(metric => (
+                            <div key={metric}>
+                              <label style={{ fontSize: '10px', color: '#666', display: 'block' }}>{metric}</label>
+                              <input
+                                type="text"
+                                placeholder={metric}
+                                value={newProduct.sizeChart?.[size]?.[metric.toLowerCase()] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setNewProduct(prev => ({
+                                    ...prev,
+                                    sizeChart: {
+                                      ...prev.sizeChart,
+                                      [size]: {
+                                        ...prev.sizeChart?.[size],
+                                        [metric.toLowerCase()]: val
+                                      }
+                                    }
+                                  }));
+                                }}
+                                style={{ fontSize: '12px', padding: '5px', width: '100%' }}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -976,11 +996,53 @@ const VendorDashboard = ({ user, onLogout }) => {
                   <select value={editingProduct.category} onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px' }}>
                     <option value="Topwear">Topwear</option>
                     <option value="Bottomwear">Bottomwear</option>
+                    <option value="Dresses">Dresses</option>
                     <option value="Footwear">Footwear</option>
                     <option value="Accessories">Accessories</option>
                     <option value="Innerwear">Innerwear</option>
                   </select>
                 </label>
+
+                {/* EDIT SIZE CHART */}
+                {editingProduct.sizes && (
+                  <div className="size-chart-edit" style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc', maxHeight: '200px', overflowY: 'auto' }}>
+                    <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>📏 Edit Size Chart ({editingProduct.category})</label>
+                    {(Array.isArray(editingProduct.sizes) ? editingProduct.sizes : (editingProduct.sizes || "").split(",")).map(size => {
+                      const s = size.trim();
+                      if (!s) return null;
+                      const metrics = CATEGORY_MEASUREMENTS[editingProduct.category] || ['Chest', 'Waist', 'Hips', 'Length / Height', 'Shoulders', 'Thigh'];
+                      return (
+                        <div key={s} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Size: {s}</span>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px' }}>
+                            {metrics.map(metric => (
+                              <input
+                                key={metric}
+                                type="text"
+                                placeholder={metric}
+                                value={editingProduct.sizeChart?.[s]?.[metric.toLowerCase()] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditingProduct(prev => ({
+                                    ...prev,
+                                    sizeChart: {
+                                      ...prev.sizeChart,
+                                      [s]: {
+                                        ...prev.sizeChart?.[s],
+                                        [metric.toLowerCase()]: val
+                                      }
+                                    }
+                                  }));
+                                }}
+                                style={{ fontSize: '11px', padding: '4px' }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
 
                 <div style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>📸 Replace Image</label>

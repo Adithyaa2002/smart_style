@@ -69,4 +69,3 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 *.zip
-backend/uploads/

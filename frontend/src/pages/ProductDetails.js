@@ -25,8 +25,38 @@ const ProductDetails = () => {
     const [selectedSize, setSelectedSize] = useState(""); // Track user size choice
 
     // CLOTHING ADJUSTMENT STATE
-    // Reset default alignment visually now that algorithm dynamically scales to avatar body.
-    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, y: -0.09, z: 0.00 });
+    const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
+
+    // Auto-load adjustments when product is loaded
+    useEffect(() => {
+        if (product) {
+            setClothingAdj({
+                scale: product.adjustmentScale ?? 1.0,
+                x: product.adjustmentX ?? 0,
+                y: product.adjustmentY ?? 0,
+                z: product.adjustmentZ ?? 0,
+            });
+        }
+    }, [product?._id]);
+
+    const saveAdjustments = async () => {
+        if (!product?._id) return toast.error("No product loaded");
+        try {
+            const res = await axios.patch(`http://localhost:5000/api/products/${product._id}/adjustments`, {
+                adjustmentScale: clothingAdj.scale,
+                adjustmentX: clothingAdj.x,
+                adjustmentY: clothingAdj.y,
+                adjustmentZ: clothingAdj.z,
+            });
+            if (res.data.success) {
+                setProduct({ ...product, ...res.data.product });
+                toast.success("✅ Adjustments saved for everyone!");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to save adjustments");
+        }
+    };
 
     // --- Review State & Handler ---
     const [newReview, setNewReview] = useState({ rating: 5, comment: "" });
@@ -124,17 +154,68 @@ const ProductDetails = () => {
                                 category={product.category}
                                 modelUrl={measurements.gender === 'male' ? "/models/male_base.glb" : "/models/female_base.glb"}
                                 adjustmentScale={clothingAdj.scale}
+                                adjustmentX={clothingAdj.x}
                                 adjustmentY={clothingAdj.y}
                                 adjustmentZ={clothingAdj.z}
                                 faceParams={faceParams}
                                 sizeChartData={product.sizeChart}
                                 availableSizes={product.sizes}
                                 initialSize={selectedSize || (product.sizes && product.sizes[0])}
+                                name={product.name}
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
 
-                            <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
-                        </div >
+                            {/* ADJUSTMENT SLIDERS */}
+                            <div className="clothing-fixes-overlay" style={{
+                                position: 'absolute', bottom: '10px', left: '10px', right: '10px',
+                                background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px',
+                                zIndex: 120, fontSize: '0.8rem'
+                            }}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '5px' }}>
+                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Size:</label>
+                                            <input type="range" min="0.5" max="5.0" step="0.1" value={clothingAdj.scale}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>X:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.x}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, x: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Y:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.y}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                        <div style={{ flex: '1 1 45%', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                            <label>Z:</label>
+                                            <input type="range" min="-1.0" max="1.0" step="0.01" value={clothingAdj.z}
+                                                onChange={(e) => setClothingAdj({ ...clothingAdj, z: parseFloat(e.target.value) })}
+                                                style={{ flex: 1 }} />
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                                        <button
+                                            onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
+                                            style={{ flex: 1, fontSize: '10px', padding: '5px' }}
+                                        >
+                                            Reset
+                                        </button>
+                                        <button
+                                            onClick={saveAdjustments}
+                                            style={{ flex: 2, fontSize: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', padding: '5px' }}
+                                        >
+                                            💾 Save for Everyone
+                                        </button>
+                                    </div>
+                                </div>
+                                <button className="close-tryon" onClick={() => setShowTryOn(false)}>Close Try-On</button>
+                            </div>
+                        </div>
                     ) : (
                         <img
                             src={product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`}
@@ -142,10 +223,10 @@ const ProductDetails = () => {
                             className="main-product-img"
                         />
                     )}
-                </div >
+                </div>
 
                 {/* Right: Details */}
-                < div className="product-info" >
+                <div className="product-info">
                     <h1>{product.name}</h1>
                     <p className="price">₹{product.price}</p>
 

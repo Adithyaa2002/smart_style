@@ -73,9 +73,9 @@ class ModelErrorBoundary extends React.Component {
 }
 
 // ✅ Added hideBaseClothes prop
-function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory = "" }) {
+const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory, name: tryOnName }) => {
   // Configurable Base Model
-  const { scene } = useGLTF(baseModelUrl || "/models/human_base.glb");
+  const { scene } = useGLTF(baseModelUrl || "/models/female_base.glb");
 
   // Debug: Confirm inputs are arriving
   useEffect(() => {
@@ -466,10 +466,18 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
         const isBottomBase = name.includes("pant") || name.includes("shorts") || name.includes("undies") || name.includes("briefs") || name.includes("underwear") || name.includes("trunks") || name.includes("bottom") || name.includes("lower") || name.includes("leg") || name.includes("trousers") || name.includes("jeans");
 
         let hideThisMesh = false;
+<<<<<<< HEAD
         if (lowTryOn) {
           const isTryingTop = lowTryOn.includes("top") || lowTryOn.includes("shirt") || lowTryOn.includes("jacket") || lowTryOn.includes("tshirt") || lowTryOn.includes("upper") || lowTryOn.includes("vest");
           const isTryingBottom = lowTryOn.includes("pant") || lowTryOn.includes("trouser") || lowTryOn.includes("bottom") || lowTryOn.includes("short") || lowTryOn.includes("jeans") || lowTryOn.includes("lower");
           const isTryingFull = lowTryOn.includes("dress") || lowTryOn.includes("suit") || lowTryOn.includes("outfit") || lowTryOn.includes("frock") || lowTryOn.includes("gown") || lowTryOn.includes("full");
+=======
+        if (tryOnCategory || tryOnName) {
+          const combinedTryOn = (tryOnCategory + " " + (tryOnName || "")).toLowerCase();
+          const isTryingFull = combinedTryOn.includes("dress") || combinedTryOn.includes("suit") || combinedTryOn.includes("outfit") || combinedTryOn.includes("frock") || combinedTryOn.includes("gown") || combinedTryOn.includes("body");
+          const isTryingTop = !isTryingFull && (combinedTryOn.includes("top") || combinedTryOn.includes("shirt") || combinedTryOn.includes("jacket") || combinedTryOn.includes("tshirt"));
+          const isTryingBottom = !isTryingFull && (combinedTryOn.includes("pant") || combinedTryOn.includes("trouser") || combinedTryOn.includes("bottom") || combinedTryOn.includes("short"));
+>>>>>>> ed26dbf10d2f396d6776c295ece813eb32140e61
 
           if (isTryingFull) {
             hideThisMesh = isClothing; // Hide EVERYTHING that is clothing
@@ -614,6 +622,7 @@ function AvatarModel({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
 // -----------------------------------------------------
 // Clothing Model Component (Synced Logic + Universal Registration)
 // -----------------------------------------------------
+<<<<<<< HEAD
 const ClothingModel = React.memo(({
   url,
   category,
@@ -621,13 +630,22 @@ const ClothingModel = React.memo(({
   avatarMeasurements,
   dressMeasurements,
   selectedSize,
+=======
+const ClothingModel = ({ url, avatarSkeleton, measurements, category = "",
+>>>>>>> ed26dbf10d2f396d6776c295ece813eb32140e61
   isFixedSize = false,
   adjustmentScale = 1.0,
   adjustmentX = 0,
   adjustmentY = 0,
   adjustmentZ = 0,
+<<<<<<< HEAD
   isMale = false,
   onScaleCalculated
+=======
+  isMale = true,
+  name = "",
+  onScaleCalculated // New diagnostic callback
+>>>>>>> ed26dbf10d2f396d6776c295ece813eb32140e61
 }) => {
   const { scene } = useGLTF(url);
 
@@ -681,15 +699,15 @@ const ClothingModel = React.memo(({
       const size = new THREE.Vector3();
       box.getSize(size);
 
-      const lowCat = (category || url || "").toLowerCase();
-      const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
-      const isBottom = lowCat.includes("pant") || lowCat.includes("trouser") || lowCat.includes("bottom") || lowCat.includes("short") || lowCat.includes("jeans") || lowCat.includes("lower");
-      const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
+      const combinedCat = (category + " " + (url || "") + " " + (name || "")).toLowerCase();
+      const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
+      const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
+      const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
 
       let scaleToFit = 1.0;
       if (isFull) {
         // Dresses/Frocks/FullBody
-        const targetWidth = isMale ? 0.45 : 0.52;
+        const targetWidth = isMale ? 0.45 : 0.46; // Increased from 0.44 to resolve clipping
         scaleToFit = targetWidth / Math.max(0.1, size.x);
       } else if (isBottom) {
         const targetWidth = isMale ? 0.38 : 0.42;
@@ -993,9 +1011,17 @@ const ClothingModel = React.memo(({
   useFrame(() => {
     if (!scene || !groupRef.current || !avatarSkeleton) return;
 
+<<<<<<< HEAD
     // Ensure all world positions are fresh before calculating deltas
     avatarSkeleton.bones[0].updateMatrixWorld(true);
     scene.updateMatrixWorld(true);
+=======
+    // Auto-detect Vertical Offset based on Category & Gender
+    const combinedCat = (category + " " + (url || "") + " " + (name || "")).toLowerCase();
+    const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
+    const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
+    const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
+>>>>>>> ed26dbf10d2f396d6776c295ece813eb32140e61
 
     const currentDressMeas = dressMeasRef.current;
     const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
@@ -1007,9 +1033,21 @@ const ClothingModel = React.memo(({
     groupRef.current.scale.set(1, 1, 1);
     groupRef.current.rotation.set(0, 0, 0);
 
+<<<<<<< HEAD
     const lowCat = (category || url || "").toLowerCase();
     const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
     const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
+=======
+    // Cross-gender/Body-type Depth Boost
+    // - Women (Tops): 1.22x depth for bust. (Dresses balanced for back fit vs clipping)
+    // - Men (Tops/Full): 1.05-1.15x depth
+    const zBoost = isFull ? (isMale ? 1.15 : 0.96) : (isTop ? (isMale ? 1.05 : 1.22) : 1.0);
+    const finalScale = BASE_SCALE * autoScale * (aScale || 1.0);
+    g.scale.set(finalScale, finalScale, finalScale * zBoost);
+
+    // Auto-snap to correct vertical level
+    g.position.set(baseAutoX + (aX || 0), baseAutoY + (aY || 0), (aZ || 0));
+>>>>>>> ed26dbf10d2f396d6776c295ece813eb32140e61
 
     scene.traverse(child => {
       if (child.isSkinnedMesh && child.bindMode !== 'detached') {
@@ -1104,7 +1142,7 @@ const ClothingModel = React.memo(({
       <primitive object={scene} rotation={[0, 0, 0]} />
     </group>
   );
-});
+};
 
 const CAMERA_POS = [0, 1.0, 3.0];
 const CONTROLS_TARGET = [0, 1.0, 0];
@@ -1123,7 +1161,8 @@ export default function AvatarViewer({
   adjustmentX = 0,
   adjustmentY = 0,
   adjustmentZ = 0,
-  selectedItems = [] // NEW: Array of { model3D, category, id }
+  selectedItems = [], // NEW: Array of { model3D, category, id }
+  name = ""
 }) {
   const [avatarSkeleton, setAvatarSkeleton] = useState(null);
 
@@ -1131,6 +1170,8 @@ export default function AvatarViewer({
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [sceneDump, setSceneDump] = useState("");
+
+  const [autoScaleFactor, setAutoScaleFactor] = useState(1);
 
   useEffect(() => {
     setLocalClothingUrl(clothingModelUrl);
@@ -1197,6 +1238,12 @@ export default function AvatarViewer({
   // Removed calculateFit as it was unused and causing warnings.
   const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("male"));
 
+  // Determine Category Flags in this scope for Diagnostic Overlay
+  const combinedCat = (category + " " + (clothingModelUrl || "") + " " + (name || "")).toLowerCase();
+  const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
+  const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
+  const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
+
   const finalFaceParams = faceParams || (() => {
     try {
       const saved = localStorage.getItem("faceParams");
@@ -1236,6 +1283,7 @@ export default function AvatarViewer({
                 onSkeletonLoaded={handleSkeletonLoaded}
                 onSceneDebug={setSceneDump}
                 tryOnCategory={activeCategories}
+                name={clothingModelUrl ? name : ""}
                 hideBaseClothes={!!(localClothingUrl || (selectedItems && selectedItems.length > 0))}
               />
             </ModelErrorBoundary>
@@ -1256,7 +1304,8 @@ export default function AvatarViewer({
                   adjustmentY={adjustmentY}
                   adjustmentZ={adjustmentZ}
                   isMale={isMale}
-                  onScaleCalculated={() => { }}
+                  name={name}
+                  onScaleCalculated={setAutoScaleFactor}
                 />
               </ModelErrorBoundary>
             )}
@@ -1332,6 +1381,17 @@ export default function AvatarViewer({
         >
           📸 Save Look
         </button>
+        <div style={{
+          background: "rgba(0,0,0,0.8)", color: "#0f0", padding: "10px",
+          borderRadius: "8px", fontSize: "11px", fontFamily: "monospace",
+          border: "1px solid #333", pointerEvents: "none", textAlign: "right"
+        }}>
+          NAME: {name || "None"}<br />
+          TYPE: {isFull ? "FullBody" : (isBottom ? "Bottom" : (isTop ? "Topwear" : "Unknown"))}<br />
+          BODY: {isMale ? "MALE" : "FEMALE"}<br />
+          AUTO: {autoScaleFactor.toFixed(3)}x<br />
+          ADJ: {adjustmentScale.toFixed(2)}x | X:{adjustmentX.toFixed(2)} | Y:{adjustmentY.toFixed(2)} | Z:{adjustmentZ.toFixed(2)}
+        </div>
       </div>
     </div>
   );
@@ -1340,4 +1400,4 @@ export default function AvatarViewer({
 
 
 // ✅ preload model (faster loading)
-useGLTF.preload("/models/human_base.glb");
+useGLTF.preload("/models/female_base.glb");

@@ -864,18 +864,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                       )}
                     </div>
 
-                    <div style={{ margin: "10px 0", borderTop: "1px solid #ddd", paddingTop: "10px" }}>
-                      <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Upload Face Photo (Selfie)</label>
-                      <input
-                        type="file"
-                        id="avatar-face-upload"
-                        accept="image/*"
-                        onChange={handleFaceUpload}
-                        disabled={isFaceLoading}
-                        style={{ fontSize: "0.8rem", width: "100%" }}
-                      />
-                      {isFaceLoading && <small style={{ color: "#e91e63" }}>Processing Face AI...</small>}
-                    </div>
+
 
                     {["chest", "waist", "hips", "thigh", "shoulders"].map((m) => {
                       let options = [];

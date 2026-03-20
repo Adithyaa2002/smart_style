@@ -104,6 +104,8 @@ def analyze_face(image_path):
         chin_ratio = chin_len / face_height
         norm_chin_height = (chin_ratio - 0.1) / (0.2 - 0.1)
 
+
+
         # 6. DOMINANT SKIN COLOR (Improved)
         skin_hex = "#F5C392" # Default fallback
         try:

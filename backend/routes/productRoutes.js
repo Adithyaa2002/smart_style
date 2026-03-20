@@ -17,20 +17,46 @@ router.get("/test-route", (req, res) => {
   res.json({ message: "Product routes are active!", time: new Date().toISOString() });
 });
 
-// --------------------- COMPATIBILITY: SERVE MODEL FILES ---------------------
-router.get("/file/:filename", (req, res) => {
-  const fileName = req.params.filename;
-  const filePath = path.join(__dirname, "../uploads", fileName);
+// --------------------- GET FILE FROM GRIDFS (High Priority) ---------------------
+router.get("/file/:filename", async (req, res) => {
+  const { filename } = req.params;
+  console.log(`[FILE] Request for: ${filename}`);
+  
+  try {
+    if (!mongoose.connection.db) {
+       console.error("[FILE] Database connection not ready!");
+       return res.status(503).json({ message: "Database connection not ready" });
+    }
 
-  console.log(`[DEBUG] Attempting to serve file: ${fileName}`);
-  console.log(`[DEBUG] Resolved Path: ${filePath}`);
-  console.log(`[DEBUG] Exist Check: ${fs.existsSync(filePath)}`);
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "uploads",
+    });
 
-  if (fs.existsSync(filePath)) {
-    res.sendFile(path.resolve(filePath));
-  } else {
-    console.warn(`[DEBUG] File not found: ${filePath}`);
-    res.status(404).json({ message: "File not found" });
+    const files = await bucket.find({ filename }).toArray();
+    if (!files || files.length === 0) {
+      console.warn(`[FILE] 404: ${filename} not found in GridFS`);
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    console.log(`[FILE] Serving ${filename} (${files[0].length} bytes)`);
+
+    // Set content type for common files
+    const lowName = filename.toLowerCase();
+    if (lowName.endsWith('.glb')) res.set('Content-Type', 'model/gltf-binary');
+    else if (lowName.endsWith('.jpg') || lowName.endsWith('.jpeg')) res.set('Content-Type', 'image/jpeg');
+    else if (lowName.endsWith('.png')) res.set('Content-Type', 'image/png');
+    else if (lowName.endsWith('.webp')) res.set('Content-Type', 'image/webp');
+
+    const downloadStream = bucket.openDownloadStreamByName(filename);
+    downloadStream.on('error', (err) => {
+      console.error(`[FILE] Stream error for ${filename}:`, err);
+      if (!res.headersSent) res.status(500).send("Stream error");
+    });
+    
+    downloadStream.pipe(res);
+  } catch (err) {
+    console.error(`[FILE] Exception serving ${filename}:`, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -425,30 +451,5 @@ router.patch("/:id/adjustments", async (req, res) => {
   }
 });
 
-// --------------------- GET FILE FROM GRIDFS ---------------------
-router.get("/file/:filename", async (req, res) => {
-  try {
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
-    });
-
-    const files = await bucket.find({ filename: req.params.filename }).toArray();
-    if (!files || files.length === 0) {
-      return res.status(404).json({ message: "File not found" });
-    }
-
-    // Set content type for common files
-    const filename = req.params.filename.toLowerCase();
-    if (filename.endsWith('.glb')) res.set('Content-Type', 'model/gltf-binary');
-    else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) res.set('Content-Type', 'image/jpeg');
-    else if (filename.endsWith('.png')) res.set('Content-Type', 'image/png');
-    else if (filename.endsWith('.webp')) res.set('Content-Type', 'image/webp');
-
-    const downloadStream = bucket.openDownloadStreamByName(req.params.filename);
-    downloadStream.pipe(res);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 module.exports = router;

@@ -86,7 +86,15 @@ router.post('/face-from-photo', upload.single('photo'), async (req, res) => {
         }
 
         try {
-            const result = JSON.parse(dataString);
+            // Find the first '{' to ignore potential library logs (like matplotlib font cache messages)
+            const jsonStart = dataString.indexOf('{');
+            if (jsonStart === -1) {
+                console.error('Invalid Output:', dataString);
+                return res.status(500).json({ message: 'Face analysis failed: Script did not return JSON' });
+            }
+            const actualJson = dataString.substring(jsonStart);
+            const result = JSON.parse(actualJson);
+            
             if (result.error) {
                 return res.status(400).json({ message: result.error });
             }

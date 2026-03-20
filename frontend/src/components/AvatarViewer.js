@@ -73,7 +73,7 @@ class ModelErrorBoundary extends React.Component {
 }
 
 // ✅ Added hideBaseClothes prop
-const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory, name: tryOnName }) => {
+const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory, name: tryOnName }) => {
   // Configurable Base Model
   const { scene } = useGLTF(baseModelUrl || "/models/female_base.glb");
 
@@ -141,7 +141,16 @@ const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
 
     if (scene) {
       const finalS = GET_UNIFIED_SCALE(currentMeas?.height);
-      scene.scale.set(finalS * thicknessScale, finalS, finalS * thicknessScale);
+
+      // --- TIGHT FIT COMPRESSION ---
+      // If we are trying on a Top or Dress (which are now hardcoded to tight 0.83 scale),
+      // we slightly shrink the human body (by 2.5%) so it stays INSIDE the dress.
+      const lowCat = (tryOnCategory || "").toLowerCase();
+      const lowName = (tryOnName || "").toLowerCase();
+      const needsCompression = lowCat.includes("dress") || lowCat.includes("top") || lowName.includes("dress") || lowName.includes("shirt") || lowName.includes("top");
+      const compressionFactor = needsCompression ? 0.975 : 1.0; 
+
+      scene.scale.set(finalS * thicknessScale * compressionFactor, finalS, finalS * thicknessScale * compressionFactor);
 
       // Ground the avatar at Y=0 (no more -0.6)
       scene.position.set(0, 0, 0);
@@ -302,51 +311,7 @@ const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
       b.rightArm.scale.set(invX, invX, invZ);
     }
 
-    // --- FACE SCALING ---
-    if (faceParams) {
-      if (!b.head || !b.nose || !b.leftEye) {
-        scene.traverse((c) => {
-          if (c.isBone) {
-            const n = c.name.toLowerCase();
-            if (!b.head && (n.includes("head") || n.includes("face") || n.includes("skull"))) b.head = c;
-            if (!b.nose && (n.includes("nose") || n.includes("nasal") || n.includes("nostril"))) b.nose = c;
-            if (!b.leftEye && (n.includes("eye") && (n.includes("_l") || n.includes("left")))) b.leftEye = c;
-            if (!b.rightEye && (n.includes("eye") && (n.includes("_r") || n.includes("right")))) b.rightEye = c;
-            if (!b.jaw && (n.includes("jaw") || n.includes("chin") || n.includes("mandible"))) b.jaw = c;
-          }
-        });
-      }
 
-      if (b.head) {
-        // 1. Face Width -> Scale X (Natural: 0.9 - 1.1)
-        const faceWidthScale = 0.9 + (faceParams.faceWidth || 0.5) * 0.2;
-
-        // 2. Face Height -> Scale Y (Natural: 0.92 - 1.12)
-        const faceHeightScale = 0.92 + (faceParams.chinHeight || 0.5) * 0.2;
-
-        // Apply Head (keeping depth Z closer to base)
-        b.head.scale.set(faceWidthScale, faceHeightScale, 1.0);
-      }
-
-      if (b.jaw && faceParams.jawWidth) {
-        // Jaw: 0.85 - 1.15
-        const jawScale = 0.85 + (faceParams.jawWidth || 0.5) * 0.3;
-        b.jaw.scale.set(jawScale, 1.0, 1.0);
-      }
-
-      if (b.nose && faceParams.noseWidth) {
-        // Nose: 0.85 - 1.2
-        const noseScale = 0.85 + (faceParams.noseWidth || 0.5) * 0.35;
-        b.nose.scale.set(noseScale, 1.0, noseScale);
-      }
-
-      if (faceParams.eyeSize && b.leftEye && b.rightEye) {
-        // Eyes: 0.9 - 1.2
-        const eyeScale = 0.9 + (faceParams.eyeSize || 0.5) * 0.3;
-        b.leftEye.scale.set(eyeScale, eyeScale, eyeScale);
-        b.rightEye.scale.set(eyeScale, eyeScale, eyeScale);
-      }
-    }
 
 
     // Morph Weights
@@ -420,39 +385,38 @@ const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
         const finalClothing = isClothing && !isOtherBody;
 
         if (child.material) {
-          // 2. Apply Skin Color (No Texture on main body anymore)
-          if (finalSkin && faceParams?.skinColor) {
-            child.material.color.set(faceParams.skinColor);
-            child.material.metalness = 0;
-            child.material.roughness = 0.65; // Slightly rougher for realism
-            child.material.emissive = new THREE.Color(faceParams.skinColor).multiplyScalar(0.02); // Much lower emission
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
 
-            // ❌ REMOVE OLD FACE TEXTURE FROM BODY MESH
-            if (child.material.map && !child.userData.isCustomMap) {
-              child.material.map = null;
+          mats.forEach(mat => {
+            // Ensure no accidental transparency on main body
+            if (finalSkin) {
+              mat.transparent = false;
+              mat.opacity = 1.0;
+              mat.depthWrite = true;
+              mat.depthTest = true;
+              mat.side = THREE.DoubleSide;
+              child.renderOrder = 1; // Solid base
+            } else if (isOtherBody) {
+              // Eyelashes/etc. can keep transparency if intended, but let's stabilize them
+              const isEyelash = name.includes("lash");
+              mat.transparent = isEyelash ? mat.transparent : false;
+              mat.opacity = 1.0;
+              mat.depthWrite = true;
+              mat.side = THREE.DoubleSide;
+              child.renderOrder = 2;
             }
-          }
 
-          // 3. Transparent Body Parts
-          if (finalSkin || isOtherBody) {
-            child.material.transparent = isOtherBody ? child.material.transparent : false;
-            if (!isOtherBody) {
-              child.material.opacity = 1.0;
-              child.material.depthWrite = true;
+            // 4. Clothing Priority & Anti-Clipping
+            if (finalClothing && !finalSkin) {
+              mat.side = THREE.DoubleSide;
+              mat.depthWrite = true;
+              mat.transparent = false;
+              mat.polygonOffset = true;
+              mat.polygonOffsetFactor = -2.0;
+              mat.polygonOffsetUnits = -2.0;
+              child.renderOrder = 5;
             }
-            child.material.side = THREE.DoubleSide;
-          }
-        }
-
-        // 4. Clothing Priority & Anti-Clipping
-        if (finalClothing && child.material && !finalSkin) {
-          child.material.side = THREE.DoubleSide;
-          child.material.depthWrite = true;
-          child.material.transparent = false;
-          child.material.polygonOffset = true;
-          // Pushes it strongly to the foreground
-          child.material.polygonOffsetFactor = -2.0;
-          child.material.polygonOffsetUnits = -2.0;
+          });
         }
 
         // 5. Selective Base Clothing Hiding (Selective Visibility)
@@ -489,85 +453,7 @@ const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
       }
     });
 
-    // --- FACE OVERLAY LOGIC (REFINED) ---
-    if (faceParams?.faceTexture && b.head) {
-      if (!b.head.userData.faceOverlay) {
-        console.log("🛠️ [SYSTEM] Initializing Pin-Based Face Mesh Overlay...");
 
-        const geo = new THREE.SphereGeometry(0.1, 32, 24, Math.PI * 0.2, Math.PI * 0.6, Math.PI * 0.3, Math.PI * 0.45);
-        const mat = new THREE.MeshStandardMaterial({
-          transparent: true,
-          alphaTest: 0.001,
-          depthWrite: false,
-          roughness: 0.65,
-          metalness: 0,
-          polygonOffset: true,
-          polygonOffsetFactor: -1,
-          polygonOffsetUnits: -1
-        });
-
-        const overlay = new THREE.Mesh(geo, mat);
-        b.head.add(overlay);
-        b.head.userData.faceOverlay = overlay;
-      }
-
-      const overlay = b.head.userData.faceOverlay;
-      const maskUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/faces/${faceParams.faceTexture}`;
-
-      if (faceParams.landmarks && overlay.userData.lastUrl !== maskUrl) {
-        overlay.userData.lastUrl = maskUrl;
-        console.log("🧬 [FACEMESH] Constructing specialized mesh from landmarks...");
-
-        // 1. Load the texture
-        new THREE.TextureLoader().load(maskUrl, (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          overlay.material.map = tex;
-          overlay.material.transparent = true;
-          overlay.material.needsUpdate = true;
-
-          // 2. Build the Geometry from landmarks (468 points)
-          const landmarks = faceParams.landmarks;
-          const positions = new Float32Array(landmarks.length * 3);
-          const uvs = new Float32Array(landmarks.length * 2);
-
-          // "Pin" coordinates to landmarks (centered on nose tip: landmark 4)
-          const pin = landmarks[4];
-
-          // Adjust scale of the mesh (head is usually ~12-15cm wide)
-          const meshScale = 0.28;
-
-          for (let i = 0; i < landmarks.length; i++) {
-            const l = landmarks[i];
-            // Local space (Z is front, Y is up, X is sideways)
-            // Note: Landmarks are 0-1 normalized, we center them around the pin
-            positions[i * 3 + 0] = (l.x - pin.x) * meshScale;
-            positions[i * 3 + 1] = (pin.y - l.y) * meshScale; // Flip Y for Three.js
-            positions[i * 3 + 2] = (pin.z - l.z) * meshScale; // Pin depth
-
-            // UVs (Use x,y normalized coordinates directly)
-            uvs[i * 2 + 0] = (l.x - faceParams.landmarks[234].x) / (faceParams.landmarks[454].x - faceParams.landmarks[234].x);
-            uvs[i * 2 + 1] = 1 - (l.y - faceParams.landmarks[10].y) / (faceParams.landmarks[152].y - faceParams.landmarks[10].y);
-          }
-
-          // Standard MediaPipe Face Mesh Triangulation (subset/subset)
-          // For brevity, we recreate the sphere-like topology logic or use indices if available
-          // Let's use the existing overlay geometry but update its vertices to match lands
-          const targetGeo = overlay.geometry;
-          if (targetGeo.isBufferGeometry) {
-            // We transform the overlay into the shape of the face
-            // Note: Full BufferGeometry reconstruction would happen here if using all 468 points.
-          }
-          // For now, we use the landmarks to position the features (Nose-Pinning)
-          overlay.position.set(0, 0.043, 0.078); // Pinned slightly back
-          overlay.scale.set(1.02, 1.06, 1.0); // Much tighter anatomical fit
-        });
-      }
-
-      // Sync Skin Color to Overlay for better blending
-      if (faceParams.skinColor) {
-        overlay.material.color.set(faceParams.skinColor);
-      }
-    }
 
     // Debugging Skeleton exposure
     if (scene) {
@@ -612,6 +498,14 @@ const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug,
   return <primitive object={scene} position={[0, 0, 0]} rotation={[0, 0, 0]} />;
 }
 
+const DEFAULT_SIZE_CHART = {
+  'XS': { chest: 32, waist: 24, hips: 34, shoulders: 13.5, thigh: 19 },
+  'S': { chest: 34, waist: 26, hips: 36, shoulders: 14, thigh: 20 },
+  'M': { chest: 36, waist: 28, hips: 38, shoulders: 15, thigh: 21 },
+  'L': { chest: 38, waist: 30, hips: 40, shoulders: 16, thigh: 22 },
+  'XL': { chest: 42, waist: 34, hips: 44, shoulders: 17, thigh: 24 }
+};
+
 // -----------------------------------------------------
 // Clothing Model Component (Synced Logic + Universal Registration)
 // -----------------------------------------------------
@@ -622,6 +516,7 @@ const ClothingModel = React.memo(({
   avatarMeasurements,
   dressMeasurements,
   selectedSize,
+  sizeChartData = null, // Added prop
   isFixedSize = false,
   adjustmentScale = 1.0,
   adjustmentX = 0,
@@ -685,22 +580,25 @@ const ClothingModel = React.memo(({
 
       const combinedCat = (category + " " + (url || "") + " " + (name || "")).toLowerCase();
       const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
-      const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
+      const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower") || combinedCat.includes("skirt") || combinedCat.includes("bottomwear"));
       const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
 
       let scaleToFit = 1.0;
       if (isFull) {
-        // Dresses/Frocks/FullBody
-        const targetWidth = isMale ? 0.45 : 0.46; // Increased from 0.44 to resolve clipping
+        // Dresses/Frocks/FullBody - Calculated for perfect 1:1 default fit
+        // (Original 0.45 * 1.1 * 1.1 = ~0.545)
+        const targetWidth = isMale ? 0.545 : 0.55;
         scaleToFit = targetWidth / Math.max(0.1, size.x);
       } else if (isBottom) {
-        const targetWidth = isMale ? 0.38 : 0.42;
+        // Bottomwear - Increased by 20% based on user preference (0.42 * 1.2 = 0.504)
+        const targetWidth = isMale ? 0.504 : 0.552;
         scaleToFit = targetWidth / Math.max(0.1, size.x);
       } else if (isTop) {
-        const targetWidth = isMale ? 0.70 : 0.60; // User-confirmed perfect fit for male
+        // Topwear - Reduced by 10% based on user preference (0.77 * 0.9 = 0.693)
+        const targetWidth = isMale ? 0.693 : 0.594;
         scaleToFit = targetWidth / Math.max(0.1, size.x);
       } else {
-        scaleToFit = 0.45 / Math.max(0.1, size.x);
+        scaleToFit = 0.50 / Math.max(0.1, size.x);
       }
 
       // Ensure it never goes above 5x or below 0.1x to prevent insanity
@@ -712,9 +610,21 @@ const ClothingModel = React.memo(({
       // --- CRITICAL BAKE: Scale and Center Geometry directly ---
       // This ensures SkinnedMeshes respect the scale even when bound to bones
       scene.traverse(mesh => {
-        if (mesh.isMesh) {
+        if (mesh.isMesh || mesh.isSkinnedMesh) {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
+          mesh.frustumCulled = false; // Prevent tearing when rotating
+
+          if (mesh.material) {
+            mesh.material.side = THREE.DoubleSide;
+            mesh.material.depthWrite = true;
+            mesh.material.transparent = false;
+
+            // Anti-clipping boost
+            mesh.material.polygonOffset = true;
+            mesh.material.polygonOffsetFactor = -20.0;
+            mesh.material.polygonOffsetUnits = -20.0;
+          }
         }
       });
 
@@ -742,79 +652,93 @@ const ClothingModel = React.memo(({
     const worldScale = GET_UNIFIED_SCALE(avatarMeasurements?.height);
 
 
-
-
-
-
-
-
-
-
-
-
-
     const explicitCat = (category || "").toLowerCase();
     const lowCat = (url || "").toLowerCase();
 
-    // 1. Detect garment type — check BOTH category string AND model URL
-    // URL often contains the real garment design (e.g. "bodycon_dress.glb")
-    const urlHasDress = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("gown") || lowCat.includes("bodycon") || lowCat.includes("full");
-    const catHasDress = explicitCat.includes("dress") || explicitCat.includes("frock") || explicitCat.includes("gown") || explicitCat.includes("suit") || explicitCat.includes("full");
+    // 1. Detect garment type — significantly more robust detection
+    const isDress = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("gown") || lowCat.includes("bodycon") || lowCat.includes("full") || explicitCat.includes("dress") || explicitCat.includes("frock") || explicitCat.includes("suit");
+    const isBottom = !isDress && (explicitCat.includes("pant") || explicitCat.includes("trouser") || explicitCat.includes("bottom") || explicitCat.includes("short") || explicitCat.includes("jeans") || explicitCat.includes("lower") || explicitCat.includes("skirt") || explicitCat.includes("bottomwear") || lowCat.includes("pant") || lowCat.includes("bottom") || lowCat.includes("jeans") || lowCat.includes("trouser") || lowCat.includes("short"));
+    const isTop = !isDress && !isBottom && (explicitCat.includes("top") || explicitCat.includes("shirt") || explicitCat.includes("jacket") || explicitCat.includes("upper") || explicitCat.includes("vest") || lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("jacket") || lowCat.includes("tshirt"));
 
-    // isFull takes PRIORITY — a design labeled as "dress" should not be shrunken/cropped like a top
-    const isFull = catHasDress || urlHasDress;
-    const isTop = !isFull && (explicitCat.includes("top") || explicitCat.includes("shirt") || explicitCat.includes("jacket") || explicitCat.includes("upper") || lowCat.includes("top") || lowCat.includes("shirt"));
-    const isBottom = !isFull && (explicitCat.includes("bottom") || explicitCat.includes("pant") || explicitCat.includes("jeans") || explicitCat.includes("lower") || lowCat.includes("pant") || lowCat.includes("bottom"));
+    const isFull = isDress; // Alias for clarity in pinning logic
 
-    // --- Dynamic Height/Length Logic ---
-    const hVal = Number(avatarMeasurements?.height || 157.5);
-    const avatarHScale = hVal > 0 ? (hVal > 70 ? hVal / 157.5 : hVal / 62) : 1;
-    const dressHeightMeas = Number(dressMeasurements?.['length / height'] || dressMeasurements?.length || dressMeasurements?.height || 0);
-
-    // IMPORTANT: Use the originalBoxRef to avoid feedback loops with mutated geometry
     const originalBox = originalBoxRef.current || new THREE.Box3().setFromObject(scene);
-    const modelInternalHeight = originalBox.max.y - originalBox.min.y;
-    // --- Scaling and Height Logic ---
-    // The avatar rig is 4.6m in Blender but mapped to ~1.6 units in Three.js.
-    // A 0.45 multiplier correctly normalizes these scales (1.6 / 4.6 ≈ 0.35 + buffer).
-    const baseMult = 0.45;
-    
-    // --- SIZING LOGIC (S, M, L, XL) ---
-    // We assume the GLB model was designed for a 36-inch chest (Standard Medium).
-    // If the user selects a different size, we scale the model by the ratio.
-    const DESIGN_CHEST_INCHES = 36;
-    const selectedChest = Number(dressMeasurements?.chest || 36);
-    const sizeMultiplier = selectedChest / DESIGN_CHEST_INCHES;
 
-    // Apply scaling based on user height and product size
-    const finalScaleValue = worldScale * baseMult * adjustmentScale * sizeMultiplier;
+    // --- SIZE CHART SCALING ---
+    const activeChart = sizeChartData && Object.keys(sizeChartData).length > 0 ? sizeChartData : DEFAULT_SIZE_CHART;
 
-    // Uniform Scaling by default to preserve design aspect ratio
-    let finalYScale = finalScaleValue;
+    let sizingMultiplier = 1.0;
+    let categoryXOffset = 0;
+    let categoryYOffset = 0;
+    let categoryZOffset = 0;
 
-    // Optional: If vendor provided a specific length for this size, use it to fine-tune Y
-    if (dressHeightMeas > 0) {
-      const referenceYUnits = 3.8 * worldScale; 
-      const heightDivisor = isTop ? 240 : 180;
-      const targetHeightUnits = (dressHeightMeas / heightDivisor) * referenceYUnits;
+    if (isBottom) {
+      // Bottomwear: Baseline is S (Waist) as per user request
+      const baselineWaist = Number(activeChart?.['S']?.waist || 26);
+      const selectedWaist = Number(dressMeasurements?.waist || baselineWaist);
 
-      if (modelInternalHeight > 0.05) {
-        // This makes the dress length match the size chart exactly
-        finalYScale = (targetHeightUnits / modelInternalHeight) * adjustmentScale;
+      if (!isMale) {
+        // Women's Bottomwear: Scale 0.93, X -0.01
+        sizingMultiplier = (selectedWaist / baselineWaist) * 0.93;
+        categoryXOffset = -0.01;
+      } else {
+        // Men's Bottomwear: Scale 0.99, X 0.00
+        sizingMultiplier = (selectedWaist / baselineWaist) * 0.99;
+      }
+    } else {
+      // Top/Dress
+      const isFemaleBody = !isMale;
+
+      if (isFemaleBody) {
+        // Women's Tops/Dress: Baseline S (Chest) as per user request
+        // We use 1.0 here because the explicit UI offsets (0.83, 0.02, 0.03, 0.02) will be supplied via the adjustment sliders
+        const baselineS = Number(activeChart?.['S']?.chest || activeChart?.['XS']?.chest || 32);
+        const selectedChest = Number(dressMeasurements?.chest || baselineS);
+        sizingMultiplier = (selectedChest / baselineS) * 1.0;
+        categoryXOffset = 0.00;
+        categoryYOffset = 0.00;
+        categoryZOffset = 0.00;
+      } else {
+        // Men's Top/Dress: Baseline S (Chest)
+        // Scale 1.10, X -0.01, Y -0.03
+        const baselineS = Number(activeChart?.['S']?.chest || activeChart?.['M']?.chest || 38);
+        const selectedChest = Number(dressMeasurements?.chest || baselineS);
+        sizingMultiplier = (selectedChest / baselineS) * 1.10;
+        categoryXOffset = -0.01;
+        categoryYOffset = -0.03;
       }
     }
 
+    // Revert to uniform auto-scaling (Plus sizing multiplier)
+    let finalScaleValue = autoScale * adjustmentScale * sizingMultiplier;
 
-    const zBoost = isTop ? (isMale ? 1.05 : 1.22) : (isFull ? (isMale ? 1.15 : 0.97) : 1.0);
-    const applyZ = finalScaleValue * zBoost;
+    // --- CROSS-GENDER COMPENSATION ---
+    // If male body tries women's dress, apply user-vetted offset
+    const isWomensGarment = isDress || (url || "").toLowerCase().includes("woman") || (category || "").toLowerCase().includes("woman");
+    const isMaleBody = isMale;
+
+    let genderXOffset = 0;
+    let genderZOffset = 0;
+
+    if (isMaleBody && isWomensGarment) {
+      finalScaleValue *= 1.01; // Increase scale by 1% as per screenshot
+      genderXOffset = -0.02; // Shift slightly left
+      genderZOffset = -0.02; // Shift slightly backward
+    }
+
+    const finalYScale = finalScaleValue;
+    const applyZ = finalScaleValue;
 
     // --- Smart Pinning Logic (Blender Scale: 4.6m -> World Scale) ---
     // --- Smart Pinning Logic (Blender Scale: 4.6m -> World Scale) ---
     // Both tops and dresses should be pinned to the shoulder (4.6)
     let targetTop = (isTop || isFull) ? 4.6 * worldScale : 4.2 * worldScale;
 
-    // Use bone coordinate for shoulders if available (Best Precision)
+    let AVATAR_WAIST_Y = 2.8 * worldScale; // Default fallback
+
+    // Use bone coordinates for precision pinning
     if (avatarSkeleton && avatarSkeleton.bones) {
+      // A. SHIKARI/TOP PINNING
       const shoulderBones = avatarSkeleton.bones.filter(b =>
         b.name.toLowerCase().includes("shoulder") ||
         b.name.toLowerCase().includes("clavicle") ||
@@ -823,12 +747,23 @@ const ClothingModel = React.memo(({
       if (shoulderBones.length > 0) {
         const bonePos = new THREE.Vector3();
         shoulderBones[0].getWorldPosition(bonePos);
-        // Both tops and dresses: pin right at shoulder bone with 18% lift to sit on top
-        if (bonePos.y > 0.05) targetTop = bonePos.y * ((isTop || isFull) ? 1.18 : 1.05);
-       }
-    }
+        // Both tops and dresses: pin right at shoulder bone.
+        // Lowered from 1.18 to 1.08 (~0.13 Y offset reduction) based on user preference.
+        if (bonePos.y > 0.05) targetTop = bonePos.y * ((isTop || isFull) ? 1.08 : 1.05);
+      }
 
-    const AVATAR_WAIST_Y = 2.8 * worldScale;
+      // B. WAIST PINNING for Bottoms
+      const waistBones = avatarSkeleton.bones.filter(b =>
+        b.name.toLowerCase().includes("spine") ||
+        b.name.toLowerCase().includes("hips") ||
+        b.name.toLowerCase().includes("waist")
+      );
+      if (waistBones.length > 0) {
+        const bonePos = new THREE.Vector3();
+        waistBones[0].getWorldPosition(bonePos);
+        if (bonePos.y > 0.05) AVATAR_WAIST_Y = bonePos.y;
+      }
+    }
 
 
     let smartYOffset = 0;
@@ -856,8 +791,8 @@ const ClothingModel = React.memo(({
         const newGeo = child.userData.originalGeometry.clone();
         newGeo.scale(finalScaleValue, finalYScale, applyZ);
 
-        // Apply smart vertical offset + manual adjustments
-        newGeo.translate(adjustmentX, adjustmentY + smartYOffset, adjustmentZ);
+        // Apply smart vertical offset + manual adjustments + gender offset + category offset
+        newGeo.translate(adjustmentX + genderXOffset + categoryXOffset, adjustmentY + smartYOffset + categoryYOffset, adjustmentZ + genderZOffset + categoryZOffset);
         child.geometry = newGeo;
       }
     });
@@ -909,7 +844,8 @@ const ClothingModel = React.memo(({
         child.material.alphaTest = 0.5;
         child.material.depthWrite = true;
         child.material.polygonOffset = true;
-        child.material.polygonOffsetFactor = -10.0; // Pushes garment strongly in front
+        child.material.polygonOffsetFactor = -20.0;
+        child.material.polygonOffsetUnits = -20.0;
 
         if (!child.userData.hasInflated) {
           // Mesh inflation removed for 'Small' fit
@@ -982,8 +918,8 @@ const ClothingModel = React.memo(({
           // Bind with identity to ensure it follows the avatar bones precisely
           child.bind(new THREE.Skeleton(newBones), new THREE.Matrix4());
           child.material.polygonOffset = true;
-          child.material.polygonOffsetFactor = -5.0; // Individual item priority
-          child.material.polygonOffsetUnits = -5.0;
+          child.material.polygonOffsetFactor = -20.0; // Pushes garment aggressively to front
+          child.material.polygonOffsetUnits = -20.0;
         }
       }
     });
@@ -1006,6 +942,9 @@ const ClothingModel = React.memo(({
     const lowCat = (category || url || "").toLowerCase();
     const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
     const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
+
+    const currentDressMeas = dressMeasRef.current;
+    const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
 
 
     scene.traverse(child => {
@@ -1056,24 +995,31 @@ const ClothingModel = React.memo(({
           }
         };
 
-        // Set to near-zero (0.01) for the tightest possible body-hugging fit
-        const baseBuff = 0.01;
-
+        // Set to a relaxed buffer (0.25) to artificially puff out the mesh
+        // especially for the '0.83' scale which is extremely tight.
+        const baseBuff = 0.25;
+        // Specific back/hip safety boost to prevent constant tearing reported by user
+        const backSafety = 0.15;
 
         const totalBuff = baseBuff + loosenessBonus;
 
         setKey("measure-bust-circ-incr", chestW + totalBuff);
         setKey("measure-bust-circ-inc", chestW + totalBuff);
-        setKey("measure-waist-circ-incr", waistW + totalBuff);
-        setKey("measure-waist-circ-inc", waistW + totalBuff);
-        setKey("measure-hips-circ-incr", hipsW + totalBuff);
-        setKey("measure-hips-circ-inc", hipsW + totalBuff);
-        setKey("measure-thigh-circ-incr", thighW + totalBuff);
-        setKey("measure-thigh-circ-inc", thighW + totalBuff);
+        setKey("measure-waist-circ-incr", waistW + totalBuff + backSafety);
+        setKey("measure-waist-circ-inc", waistW + totalBuff + backSafety);
+        setKey("measure-hips-circ-incr", hipsW + totalBuff + backSafety + 0.1);
+        setKey("measure-hips-circ-inc", hipsW + totalBuff + backSafety + 0.1);
+        setKey("measure-hips", hipsW + totalBuff + backSafety + 0.1);
+        setKey("Hips", hipsW + totalBuff + backSafety + 0.1);
+        setKey("measure-buttocks", hipsW + totalBuff + backSafety + 0.1);
+        setKey("measure-glutes", hipsW + totalBuff + backSafety + 0.1);
+        setKey("measure-thigh-circ-incr", thighW + totalBuff + backSafety);
+        setKey("measure-thigh-circ-inc", thighW + totalBuff + backSafety);
+        setKey("measure-thighs", thighW + totalBuff + backSafety);
         setKey("measure-shoulder-dist-incr", shoulderW + totalBuff);
         setKey("measure-shoulder-dist-inc", shoulderW + totalBuff);
-        setKey("measure-calf-circ-incr", calfW + totalBuff);
-        setKey("measure-calf-circ-inc", calfW + totalBuff);
+        setKey("measure-calf-circ-incr", calfW + totalBuff + backSafety);
+        setKey("measure-calf-circ-inc", calfW + totalBuff + backSafety);
         setKey("BreastSize", chestW + totalBuff);
 
         // Secondary: If the model has explicit Size Keys (S, M, L, XL), apply them too
@@ -1103,15 +1049,14 @@ const ClothingModel = React.memo(({
   );
 });
 
-const CAMERA_POS = [0, 1.0, 3.0];
-const CONTROLS_TARGET = [0, 1.0, 0];
-const LIGHT_POS = [5, 10, 5];
+const CAMERA_POS = [0, 1.5, 4];
+const CONTROLS_TARGET = [0, 1, 0];
+const LIGHT_POS = [5, 5, 5];
 
 export default function AvatarViewer({
   measurements,
   clothingModelUrl,
   category,
-  faceParams,
   sizeChartData = null,
   availableSizes = ['S', 'M', 'L', 'XL'],
   initialSize = 'M',
@@ -1186,29 +1131,13 @@ export default function AvatarViewer({
     }
   }, [initialSize]);
 
-  const SIZE_CHARTS = sizeChartData && Object.keys(sizeChartData).length > 0 ? sizeChartData : {
-    'S': { chest: 34, waist: 26, hips: 36, shoulders: 14, thigh: 20 },
-    'M': { chest: 36, waist: 28, hips: 38, shoulders: 15, thigh: 21 },
-    'L': { chest: 38, waist: 30, hips: 40, shoulders: 16, thigh: 22 },
-    'XL': { chest: 42, waist: 34, hips: 44, shoulders: 17, thigh: 24 }
-  };
-  const clothingMeasurements = SIZE_CHARTS[selectedSize] || Object.values(SIZE_CHARTS)[0];
+  const activeChart = sizeChartData && Object.keys(sizeChartData).length > 0 ? sizeChartData : DEFAULT_SIZE_CHART;
+  const clothingMeasurements = activeChart[selectedSize] || Object.values(activeChart)[0];
 
   // Removed calculateFit as it was unused and causing warnings.
   const isMale = (measurements?.gender === "male") || (modelUrl?.toLowerCase().includes("male"));
 
-  // Determine Category Flags in this scope for Diagnostic Overlay
-  const combinedCat = (category + " " + (clothingModelUrl || "") + " " + (name || "")).toLowerCase();
-  const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
-  const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
-  const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
 
-  const finalFaceParams = faceParams || (() => {
-    try {
-      const saved = localStorage.getItem("faceParams");
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) { return null; }
-  })();
 
   const handleSkeletonLoaded = (skeleton) => {
     setAvatarSkeleton(skeleton);
@@ -1238,7 +1167,6 @@ export default function AvatarViewer({
               <AvatarModel
                 baseModelUrl={modelUrl}
                 measurements={measurements}
-                faceParams={finalFaceParams}
                 onSkeletonLoaded={handleSkeletonLoaded}
                 onSceneDebug={setSceneDump}
                 tryOnCategory={activeCategories}
@@ -1274,21 +1202,40 @@ export default function AvatarViewer({
               const itemUrl = item.model3D?.startsWith('http') ? item.model3D : `http://localhost:5000${item.model3D}`;
               if (!item.model3D) return null;
 
+              // --- PER-ITEM SIZE LOGIC for Combination ---
+              const itemSize = item.selectedSize || selectedSize || 'M';
+              const itemChart = item.sizeChart || item.sizeChartData || sizeChartData || DEFAULT_SIZE_CHART;
+              const itemMeasurements = itemChart[itemSize] || Object.values(itemChart)[0];
+
+              // --- DEFAULT OR LIVE ADJUSTMENTS ---
+              const combinedCat = ((item.type || "") + " " + (item.category || "") + " " + (item.name || "")).toLowerCase();
+              const isTopwearOrDress = combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("jacket") || combinedCat.includes("tshirt") || combinedCat.includes("upper") || combinedCat.includes("dress") || combinedCat.includes("suit") || combinedCat.includes("outfit") || combinedCat.includes("frock") || combinedCat.includes("gown");
+              const isWomensItem = combinedCat.includes("wom") || combinedCat.includes("female") || !isMale;
+              const enforceDefaultWom = isWomensItem && isTopwearOrDress;
+              const enforceDefaultMen = !isWomensItem && isTopwearOrDress;
+
+              const isLast = idx === selectedItems.length - 1;
+              const liveScale = isLast ? adjustmentScale : (enforceDefaultWom ? 0.83 : (enforceDefaultMen ? 1.0 : (item.adjustmentScale ?? 1.0)));
+              const liveX = isLast ? adjustmentX : (enforceDefaultWom ? 0.02 : (enforceDefaultMen ? 0.0 : (item.adjustmentX ?? 0)));
+              const liveY = isLast ? adjustmentY : (enforceDefaultWom ? 0.03 : (enforceDefaultMen ? 0.0 : (item.adjustmentY ?? 0)));
+              const liveZ = isLast ? adjustmentZ : (enforceDefaultWom ? 0.02 : (enforceDefaultMen ? 0.0 : (item.adjustmentZ ?? 0)));
+
               return (
                 <ModelErrorBoundary key={`${item.id || idx}-${itemUrl}`}>
                   <ClothingModel
                     url={itemUrl}
-                    category={item.category || item.type}
+                    category={item.type || item.category || ""}
                     avatarSkeleton={avatarSkeleton}
                     avatarMeasurements={measurements}
-                    dressMeasurements={clothingMeasurements}
-                    selectedSize={selectedSize}
-                    isFixedSize={false}
-                    adjustmentScale={adjustmentScale}
-                    adjustmentX={adjustmentX}
-                    adjustmentY={adjustmentY}
-                    adjustmentZ={adjustmentZ}
+                    dressMeasurements={itemMeasurements}
+                    selectedSize={itemSize}
+                    sizeChartData={itemChart}
+                    adjustmentScale={liveScale}
+                    adjustmentX={liveX}
+                    adjustmentY={liveY}
+                    adjustmentZ={liveZ}
                     isMale={isMale}
+                    name={item.name || ""}
                     onScaleCalculated={() => { }} // No auto-scale feedback for multi-items yet
                   />
                 </ModelErrorBoundary>
@@ -1340,23 +1287,15 @@ export default function AvatarViewer({
         >
           📸 Save Look
         </button>
-        <div style={{
-          background: "rgba(0,0,0,0.8)", color: "#0f0", padding: "10px",
-          borderRadius: "8px", fontSize: "11px", fontFamily: "monospace",
-          border: "1px solid #333", pointerEvents: "none", textAlign: "right"
-        }}>
-          NAME: {name || "None"}<br />
-          TYPE: {isFull ? "FullBody" : (isBottom ? "Bottom" : (isTop ? "Topwear" : "Unknown"))}<br />
-          BODY: {isMale ? "MALE" : "FEMALE"}<br />
-          AUTO: {autoScaleFactor.toFixed(3)}x<br />
-          ADJ: {adjustmentScale.toFixed(2)}x | X:{adjustmentX.toFixed(2)} | Y:{adjustmentY.toFixed(2)} | Z:{adjustmentZ.toFixed(2)}
-        </div>
       </div>
     </div>
   );
 }
 
 
+
+// ✅ preload model (faster loading)
+useGLTF.preload("/models/female_base.glb");
 
 // ✅ preload model (faster loading)
 useGLTF.preload("/models/female_base.glb");

@@ -29,6 +29,9 @@ const VirtualTryOn = () => {
     }
   };
 
+  // CLOTHING SIZE STATE
+  const [selectedSize, setSelectedSize] = useState('M');
+
   // CLOTHING ADJUSTMENT STATE - loads from selected product's DB values
   const [clothingAdj, setClothingAdj] = useState({ scale: 1.0, x: 0, y: 0, z: 0 });
 
@@ -36,13 +39,41 @@ const VirtualTryOn = () => {
   useEffect(() => {
     if (selectedProducts.length === 0) return;
     const lastProduct = selectedProducts[selectedProducts.length - 1];
+
+    const combinedCat = ((lastProduct.type || "") + " " + (lastProduct.category || "") + " " + (lastProduct.name || "")).toLowerCase();
+    const isTopwearOrDress = combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("jacket") || combinedCat.includes("tshirt") || combinedCat.includes("upper") || combinedCat.includes("dress") || combinedCat.includes("suit") || combinedCat.includes("outfit") || combinedCat.includes("frock") || combinedCat.includes("gown");
+    const isWomen = combinedCat.includes("wom") || combinedCat.includes("female") || !measurements || measurements.gender !== "male";
+
+    let defScale = 1.0;
+    let defX = 0;
+    let defY = 0;
+    let defZ = 0;
+
+    if (isWomen && isTopwearOrDress) {
+      defScale = 0.83;
+      defX = 0.02;
+      defY = 0.03;
+      defZ = 0.02;
+    }
+
+    const dbScale = lastProduct.adjustmentScale ?? 1.0;
+    const dbX = lastProduct.adjustmentX ?? 0;
+    const dbY = lastProduct.adjustmentY ?? 0;
+    const dbZ = lastProduct.adjustmentZ ?? 0;
+
+    const isNeutralDB = dbScale === 1.0 && dbX === 0 && dbY === 0 && dbZ === 0;
+
+    // Force defaults for BOTH women and men topwear to ensure consistency
+    const isMenTopwear = !isWomen && isTopwearOrDress;
+    const forceDefaults = (isWomen && isTopwearOrDress) || isMenTopwear;
+
     setClothingAdj({
-      scale: lastProduct.adjustmentScale ?? 1.0,
-      x: lastProduct.adjustmentX ?? 0,
-      y: lastProduct.adjustmentY ?? 0,
-      z: lastProduct.adjustmentZ ?? 0,
+      scale: (isNeutralDB || forceDefaults) ? defScale : dbScale,
+      x: (isNeutralDB || forceDefaults) ? defX : dbX,
+      y: (isNeutralDB || forceDefaults) ? defY : dbY,
+      z: (isNeutralDB || forceDefaults) ? defZ : dbZ,
     });
-  }, [selectedProducts.length]);
+  }, [selectedProducts.length, selectedProducts[selectedProducts.length - 1]?.id]);
 
   // MEASUREMENTS & FACE PARAMS
   const [measurements, setMeasurements] = useState(() => {
@@ -51,45 +82,7 @@ const VirtualTryOn = () => {
       chest: 34, waist: 28, hips: 38, thigh: 20, shoulders: 15, height: 170, weight: 60, gender: "female"
     };
   });
-  const [faceParams, setFaceParams] = useState(JSON.parse(localStorage.getItem('faceParams')) || null);
-  const [isFaceLoading, setIsFaceLoading] = useState(false);
 
-  const updateGender = (gender) => {
-    const updated = { ...measurements, gender };
-    setMeasurements(updated);
-    localStorage.setItem("userMeasurements", JSON.stringify(updated));
-  };
-
-  const handleFaceUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setIsFaceLoading(true);
-    const formData = new FormData();
-    formData.append('photo', file);
-
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/avatar/face-from-photo`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setFaceParams(data.faceParams);
-        localStorage.setItem('faceParams', JSON.stringify(data.faceParams));
-        alert("✅ Face Generated Successfully! Switch to Preview to see changes.");
-      } else {
-        alert("❌ Error: " + (data.message || 'Face analysis failed'));
-      }
-    } catch (error) {
-      console.error(error);
-      alert("❌ Upload Failed: " + error.message);
-    } finally {
-      setIsFaceLoading(false);
-    }
-  };
 
   // FETCH PRODUCTS AND HISTORY
   useEffect(() => {
@@ -138,7 +131,8 @@ const VirtualTryOn = () => {
       category: 'clothing',
       price: 25.99,
       image: 'https://via.placeholder.com/200x300/FFFFFF/000000?text=White+T-Shirt',
-      tryOnPreview: 'https://via.placeholder.com/400x600/FFFFFF/000000?text=👕+Try-On+View'
+      tryOnPreview: 'https://via.placeholder.com/400x600/FFFFFF/000000?text=👕+Try-On+View',
+      model3D: '/models/white_tshirt.glb'
     },
     {
       id: '2',
@@ -147,7 +141,8 @@ const VirtualTryOn = () => {
       category: 'clothing',
       price: 65.99,
       image: 'https://via.placeholder.com/200x300/000080/FFFFFF?text=Denim+Jeans',
-      tryOnPreview: 'https://via.placeholder.com/400x600/000080/FFFFFF?text=👖+Try-On+View'
+      tryOnPreview: 'https://via.placeholder.com/400x600/000080/FFFFFF?text=👖+Try-On+View',
+      model3D: '/models/designer_jeans.glb'
     },
     {
       id: '3',
@@ -156,7 +151,8 @@ const VirtualTryOn = () => {
       category: 'shoes',
       price: 120.99,
       image: 'https://via.placeholder.com/200x300/0000FF/FFFFFF?text=Running+Shoes',
-      tryOnPreview: 'https://via.placeholder.com/400x600/0000FF/FFFFFF?text=👟+Try-On+View'
+      tryOnPreview: 'https://via.placeholder.com/400x600/0000FF/FFFFFF?text=👟+Try-On+View',
+      model3D: '/models/shoes.glb'
     },
     {
       id: '4',
@@ -165,7 +161,8 @@ const VirtualTryOn = () => {
       category: 'accessories',
       price: 89.99,
       image: 'https://via.placeholder.com/200x300/000000/FFFFFF?text=Sunglasses',
-      tryOnPreview: 'https://via.placeholder.com/400x600/000000/FFFFFF?text=🕶️+Try-On+View'
+      tryOnPreview: 'https://via.placeholder.com/400x600/000000/FFFFFF?text=🕶️+Try-On+View',
+      model3D: '/models/sunglasses.glb'
     },
     {
       id: '5',
@@ -215,7 +212,17 @@ const VirtualTryOn = () => {
       finalFiltered = filtered.filter(item => getCanonicalType(item) !== "full");
     }
 
-    setSelectedProducts([...finalFiltered, { ...product, id: product._id || product.id }]);
+    setSelectedProducts([...finalFiltered, {
+      ...product,
+      id: product._id || product.id,
+      selectedSize: product.selectedSize || (product.sizes && product.sizes[0]) || 'M'
+    }]);
+  };
+
+  const updateItemSize = (productId, newSize) => {
+    setSelectedProducts(prev => prev.map(item =>
+      item.id === productId ? { ...item, selectedSize: newSize } : item
+    ));
   };
 
   const removeFromTryOn = (productId) => {
@@ -346,122 +353,11 @@ const VirtualTryOn = () => {
             >
               🕒 Try-On History
             </button>
-            <button
-              className={`tab-btn ${activeTab === 'face' ? 'active' : ''}`}
-              onClick={() => setActiveTab('face')}
-            >
-              👤 Avatar Face
-            </button>
+
           </div>
-    
 
-          {activeTab === 'face' && (
-            <div className="products-list">
-              <h3>Avatar & Face Customization</h3>
 
-              <div className="gender-selection" style={{ marginBottom: '20px', background: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
-                <h4>🧍 Body Type Selection</h4>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button
-                    className={`filter-btn ${measurements.gender === 'male' ? 'active' : ''}`}
-                    onClick={() => updateGender('male')}
-                    style={{ flex: 1, padding: '10px' }}
-                  >
-                    👨 Male
-                  </button>
-                  <button
-                    className={`filter-btn ${measurements.gender === 'female' ? 'active' : ''}`}
-                    onClick={() => updateGender('female')}
-                    style={{ flex: 1, padding: '10px' }}
-                  >
-                    👩 Female
-                  </button>
-                </div>
-              </div>
 
-              <div className="face-upload-section" style={{
-                background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px',
-                border: '2px dashed #ccc', textAlign: 'center'
-              }}>
-                <h4>🤖 AI Face Generator</h4>
-                <p style={{ fontSize: '0.9rem', color: '#666' }}>Upload a selfie to generate your unique 3D face.</p>
-
-                <input
-                  type="file"
-                  id="face-upload"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleFaceUpload(e)}
-                />
-
-                <button
-                  className="add-to-tryon-btn"
-                  onClick={() => document.getElementById('face-upload').click()}
-                  disabled={isFaceLoading}
-                  style={{ width: '100%', marginTop: '10px' }}
-                >
-                  {isFaceLoading ? 'Processing...' : '📸 Upload Photo'}
-                </button>
-              </div>
-
-              {faceParams && (
-                <div className="face-controls" style={{ marginTop: '20px' }}>
-                  <h4>Manual Adjustments</h4>
-
-                  {/* Skin Color Picker */}
-                  <div className="control-group" style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                      Skin Tone
-                      <span>{faceParams.skinColor || "#e8beac"}</span>
-                    </label>
-                    <input
-                      type="color"
-                      value={faceParams.skinColor || "#e8beac"}
-                      onChange={(e) => {
-                        const newParams = { ...faceParams, skinColor: e.target.value };
-                        setFaceParams(newParams);
-                        localStorage.setItem('faceParams', JSON.stringify(newParams));
-                      }}
-                      style={{ width: '100%', height: '40px', cursor: 'pointer', border: 'none', background: 'none' }}
-                    />
-                  </div>
-
-                  {Object.entries(faceParams).map(([key, value]) => (
-                    // Only show numeric sliders
-                    typeof value === 'number' && (
-                      <div key={key} className="control-group" style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                          {key.replace(/([A-Z])/g, ' $1').trim()}
-                          <span>{value.toFixed(2)}</span>
-                        </label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={value}
-                          onChange={(e) => {
-                            const newParams = { ...faceParams, [key]: parseFloat(e.target.value) };
-                            setFaceParams(newParams);
-                            localStorage.setItem('faceParams', JSON.stringify(newParams));
-                          }}
-                          style={{ width: '100%' }}
-                        />
-                      </div>
-                    )
-                  ))}
-
-                  <button
-                    className="action-btn secondary"
-                    onClick={() => setFaceParams(null)}
-                    style={{ width: '100%', marginTop: '10px' }}
-                  >
-                    Reset Face
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
 
           {activeTab === 'browse' && (
             <div className="products-list">
@@ -556,25 +452,61 @@ const VirtualTryOn = () => {
               </div>
             </div>
 
-            {/* Selected Products */}
-            <div className="selected-products">
-              <h3>Selected Items ({selectedProducts.length})</h3>
+            {/* Selected Products List */}
+            <div className="selected-products" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <h3 style={{ margin: 0 }}>Selected Items ({selectedProducts.length})</h3>
+
               {selectedProducts.length === 0 ? (
                 <p className="no-selection">Select products to start virtual try-on</p>
               ) : (
-                <div className="selected-items">
-                  {selectedProducts.map(product => (
-                    <div key={product.id} className="selected-item">
-                      <img src={product.image} alt={product.name} />
-                      <span>{product.name}</span>
-                      <button
-                        className="remove-btn"
-                        onClick={() => removeFromTryOn(product.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                <div className="selected-items" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {selectedProducts.map(product => {
+                    const availableItemSizes = product.sizes || ['XS', 'S', 'M', 'L', 'XL'];
+                    const currentItemSize = product.selectedSize || 'M';
+
+                    return (
+                      <div key={product.id} className="selected-item" style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        background: '#fff', padding: '10px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img src={product.image} alt={product.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
+                          <div>
+                            <span style={{ fontWeight: 'bold', display: 'block' }}>{product.name}</span>
+                            {/* Hide size buttons in combination view */}
+                            {selectedProducts.length <= 1 && (
+                              <div style={{ display: 'flex', gap: '4px', marginTop: '5px' }}>
+                                {availableItemSizes.map(sz => (
+                                  <button
+                                    key={sz}
+                                    onClick={() => updateItemSize(product.id, sz)}
+                                    style={{
+                                      padding: '2px 8px',
+                                      fontSize: '0.7rem',
+                                      borderRadius: '4px',
+                                      border: '1px solid ' + (currentItemSize === sz ? '#2196F3' : '#ddd'),
+                                      background: currentItemSize === sz ? '#2196F3' : '#fff',
+                                      color: currentItemSize === sz ? '#fff' : '#666',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {sz}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          className="remove-btn"
+                          onClick={() => removeFromTryOn(product.id)}
+                          style={{ background: '#ffeded', color: '#ff4d4f', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -583,86 +515,55 @@ const VirtualTryOn = () => {
             {/* Try-On Preview Area - PERSISTENT */}
             <div className="tryon-preview-container" style={{ position: 'relative', height: '650px', background: '#e9ecef', borderRadius: '12px' }}>
 
-              {/* Floating Clothing Fit Controls */}
-              {selectedProducts.length > 0 && (
-                <div className="clothing-adj-panel" style={{
-                  position: 'absolute', bottom: '10px', right: '10px', zIndex: 20,
-                  background: 'rgba(255,255,255,0.92)', padding: '12px 15px', borderRadius: '10px',
-                  border: '1px solid #ccc', width: '240px', boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                  backdropFilter: 'blur(6px)'
+              {/* Floating Clothing Fit Controls - Only for Single Item Browser View */}
+              {activeTab === 'browse' && selectedProducts.length === 1 && (
+                <div style={{
+                  position: 'absolute', bottom: '20px', left: '20px', right: '20px',
+                  background: 'rgba(255,255,255,0.95)', padding: '15px', borderRadius: '12px',
+                  zIndex: 120, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', border: '1px solid #ddd'
                 }}>
-                  <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem' }}>🎛️ Fit Controls</h4>
-
-                  {/* Scale */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                      <span>📐 Size</span>
-                      <span>{clothingAdj.scale.toFixed(2)}</span>
-                    </label>
-                    <input type="range" min="0.1" max="3.0" step="0.05"
-                      value={clothingAdj.scale}
-                      onChange={e => setClothingAdj(p => ({ ...p, scale: parseFloat(e.target.value) }))}
-                      style={{ width: '100%' }}
-                    />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Size Scale: {clothingAdj.scale.toFixed(2)}</label>
+                      <input type="range" min="0.5" max="2.0" step="0.01" value={clothingAdj.scale}
+                        onChange={(e) => setClothingAdj({ ...clothingAdj, scale: parseFloat(e.target.value) })}
+                        style={{ width: '100%' }} />
+                    </div>
+                    <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>X (Side): {clothingAdj.x.toFixed(2)}</label>
+                      <input type="range" min="-0.5" max="0.5" step="0.01" value={clothingAdj.x}
+                        onChange={(e) => setClothingAdj({ ...clothingAdj, x: parseFloat(e.target.value) })}
+                        style={{ width: '100%' }} />
+                    </div>
+                    <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Y (Height): {clothingAdj.y.toFixed(2)}</label>
+                      <input type="range" min="-0.5" max="0.5" step="0.01" value={clothingAdj.y}
+                        onChange={(e) => setClothingAdj({ ...clothingAdj, y: parseFloat(e.target.value) })}
+                        style={{ width: '100%' }} />
+                    </div>
+                    <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Z (Depth): {clothingAdj.z.toFixed(2)}</label>
+                      <input type="range" min="-0.5" max="0.5" step="0.01" value={clothingAdj.z}
+                        onChange={(e) => setClothingAdj({ ...clothingAdj, z: parseFloat(e.target.value) })}
+                        style={{ width: '100%' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                      <button onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
+                        style={{ padding: '8px 15px', borderRadius: '6px', border: '1px solid #ccc', cursor: 'pointer', background: '#fff' }}>
+                        Reset
+                      </button>
+                      <button onClick={saveAdjustments}
+                        style={{ padding: '8px 20px', borderRadius: '6px', border: 'none', background: '#4CAF50', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                        💾 Save For Everyone
+                      </button>
+                    </div>
                   </div>
-
-                  {/* Y — Up / Down */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                      <span>⬆️⬇️ Up / Down</span>
-                      <span>{clothingAdj.y.toFixed(2)}</span>
-                    </label>
-                    <input type="range" min="-2.0" max="2.0" step="0.05"
-                      value={clothingAdj.y}
-                      onChange={e => setClothingAdj(p => ({ ...p, y: parseFloat(e.target.value) }))}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  {/* Z — Forward / Backward */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                      <span>↔️ Depth</span>
-                      <span>{clothingAdj.z.toFixed(2)}</span>
-                    </label>
-                    <input type="range" min="-1.0" max="1.0" step="0.05"
-                      value={clothingAdj.z}
-                      onChange={e => setClothingAdj(p => ({ ...p, z: parseFloat(e.target.value) }))}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  {/* X — Left / Right */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
-                      <span>⬅️➡️ Side</span>
-                      <span>{clothingAdj.x.toFixed(2)}</span>
-                    </label>
-                    <input type="range" min="-1.0" max="1.0" step="0.05"
-                      value={clothingAdj.x}
-                      onChange={e => setClothingAdj(p => ({ ...p, x: parseFloat(e.target.value) }))}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                    <button
-                      className="action-btn secondary"
-                      onClick={() => setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 })}
-                      style={{ flex: 1, padding: '5px 8px', fontSize: '0.8rem' }}
-                    >
-                      🔄 Reset
-                    </button>
-                    <button
-                      className="action-btn primary"
-                      onClick={saveAdjustments}
-                      style={{ flex: 1, padding: '5px 8px', fontSize: '0.8rem' }}
-                    >
-                      💾 Save
-                    </button>
-                  </div>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '0.7rem', color: '#666', fontStyle: 'italic' }}>
+                    * Adjusting: <strong>{selectedProducts[selectedProducts.length - 1]?.name}</strong>
+                  </p>
                 </div>
               )}
+
               {isLoading ? (
                 <div className="loading-preview" style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)' }}>
                   <div className="spinner"></div>
@@ -675,11 +576,11 @@ const VirtualTryOn = () => {
                       measurements={measurements}
                       modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
                       selectedItems={selectedProducts}
-                      faceParams={faceParams}
                       adjustmentScale={clothingAdj.scale}
                       adjustmentX={clothingAdj.x}
                       adjustmentY={clothingAdj.y}
                       adjustmentZ={clothingAdj.z}
+                      initialSize={selectedSize}
                     />
                   </div>
 

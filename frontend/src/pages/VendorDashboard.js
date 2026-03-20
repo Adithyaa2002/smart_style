@@ -1003,6 +1003,58 @@ const VendorDashboard = ({ user, onLogout }) => {
                   </select>
                 </label>
 
+                {/* EDIT SIZES & COLORS */}
+                <div style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>📏 Available Sizes</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {["XS", "S", "M", "L", "XL", "XXL", "3XL"].map(size => (
+                      <label key={size} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', background: '#eee', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(editingProduct.sizes) ? editingProduct.sizes.includes(size) : (editingProduct.sizes || "").split(",").map(s => s.trim()).includes(size)}
+                          onChange={(e) => {
+                            const currentSizes = Array.isArray(editingProduct.sizes) ? editingProduct.sizes : (editingProduct.sizes ? editingProduct.sizes.split(",").map(s => s.trim()).filter(Boolean) : []);
+                            let updatedSizes;
+                            if (e.target.checked) {
+                              updatedSizes = [...currentSizes, size];
+                            } else {
+                              updatedSizes = currentSizes.filter(s => s !== size);
+                            }
+                            setEditingProduct({ ...editingProduct, sizes: updatedSizes });
+                          }}
+                        />
+                        {size}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '8px' }}>🎨 Available Colors</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {["Red", "Blue", "Green", "Black", "White", "Yellow", "Pink", "Purple", "Grey", "Orange", "Brown"].map(color => (
+                      <label key={color} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', background: '#eee', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(editingProduct.colors) ? editingProduct.colors.includes(color) : (editingProduct.colors || "").split(",").map(c => c.trim()).includes(color)}
+                          onChange={(e) => {
+                            const currentColors = Array.isArray(editingProduct.colors) ? editingProduct.colors : (editingProduct.colors ? editingProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : []);
+                            let updatedColors;
+                            if (e.target.checked) {
+                              updatedColors = [...currentColors, color];
+                            } else {
+                              updatedColors = currentColors.filter(c => c !== color);
+                            }
+                            setEditingProduct({ ...editingProduct, colors: updatedColors });
+                          }}
+                        />
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: color.toLowerCase(), border: '1px solid #ccc' }}></span>
+                        {color}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* EDIT SIZE CHART */}
                 {editingProduct.sizes && (
                   <div className="size-chart-edit" style={{ padding: '10px', border: '1px solid #eee', borderRadius: '8px', background: '#fcfcfc', maxHeight: '200px', overflowY: 'auto' }}>

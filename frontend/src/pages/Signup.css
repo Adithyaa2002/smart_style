@@ -43,24 +43,27 @@
   font-size: 14px;
 }
 
-.role-option input[type="radio"]:checked + span {
+.role-option input[type="radio"]:checked+span {
   font-weight: bold;
   color: #007bff;
 }
 
 /* Link styles */
-.login-link, .signup-link {
+.login-link,
+.signup-link {
   text-align: center;
   margin-top: 20px;
   color: #666;
 }
 
-.login-link a, .signup-link a {
+.login-link a,
+.signup-link a {
   color: #007bff;
   text-decoration: none;
 }
 
-.login-link a:hover, .signup-link a:hover {
+.login-link a:hover,
+.signup-link a:hover {
   text-decoration: underline;
 }
 

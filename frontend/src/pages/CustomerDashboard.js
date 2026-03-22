@@ -177,7 +177,10 @@ const CustomerDashboard = ({ user, onLogout }) => {
     if (activeTab === "orders" && customer?.email) {
       axios.get(`http://localhost:5000/api/orders/customer/${encodeURIComponent(customer.email)}`)
         .then(res => setOrderHistory(res.data))
-        .catch(err => console.error("Failed to load orders", err));
+        .catch(err => {
+          console.error("Failed to load orders", err);
+          setOrderHistory([]);
+        });
     }
   }, [activeTab, customer]);
 
@@ -978,49 +981,72 @@ const CustomerDashboard = ({ user, onLogout }) => {
           {/* ORDERS */}
           {activeTab === "orders" && (
             <div className="orders-section">
-              <h2>My Orders</h2>
+              <div className="section-header">
+                <h2>📦 My Orders</h2>
+                <p>Track and manage your recent purchases</p>
+              </div>
+
               {orderHistory.length === 0 ? (
-                <p>No orders found.</p>
+                <div className="empty-orders">
+                  <p>You haven't placed any orders yet.</p>
+                  <button className="primary-btn" onClick={() => setActiveTab("home")}>Start Shopping</button>
+                </div>
               ) : (
                 <div className="order-list">
-                  {orderHistory.map((order) => (
-                    <div key={order._id} className="order-card" style={{ border: "1px solid #ddd", padding: "15px", marginBottom: "15px", borderRadius: "8px" }}>
-                      <div className="order-header" style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px", borderBottom: "1px solid #eee", paddingBottom: "5px" }}>
-                        <span><strong>Date:</strong> {new Date(order.createdAt).toLocaleDateString()}</span>
-                        <span><strong>Status:</strong> <span style={{ color: order.status === "Delivered" ? "green" : "orange" }}>{order.status}</span></span>
-                        <span><strong>Total:</strong> ₹{order.totalAmount}</span>
-                        <button
-                          onClick={() => navigate(`/order/${order._id}`)}
-                          style={{
-                            padding: "5px 10px",
-                            backgroundColor: "#2196f3",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem"
-                          }}
-                        >
-                          Track Order
-                        </button>
-                      </div>
-                      <div className="order-items">
-                        {order.items.map((item, idx) => (
-                          <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
-                            <img
-                              src={item.image?.startsWith("http") ? item.image : `http://localhost:5000${item.image}`}
-                              alt={item.name}
-                              style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "4px" }}
-                            />
-                            <div>
-                              <p style={{ margin: 0, fontWeight: "bold" }}>{item.name}</p>
-                              <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>Qty: {item.quantity} | ₹{item.price}</p>
-                            </div>
+                  {orderHistory.map((order) => {
+                    const orderId = order._id.startsWith('ORD') ? order._id : `ORD${order._id.slice(-5).toUpperCase()}`;
+                    return (
+                      <div key={order._id} className="order-card-premium">
+                        <div className="order-card-header">
+                          <div className="order-main-info">
+                            <span className="order-id-label">Order ID: #{orderId}</span>
+                            <span className="order-timestamp">{new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                           </div>
-                        ))}
+                          <div className="order-meta-info">
+                            <span className={`order-status-badge ${order.status.toLowerCase()}`}>
+                              {order.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="order-card-body">
+                          <div className="order-items-grid">
+                            {order.items.map((item, idx) => (
+                              <div key={idx} className="order-item-mini">
+                                <div className="item-thumbnail">
+                                  {item.image ? (
+                                    <img src={item.image.startsWith("http") ? item.image : `http://localhost:5000${item.image}`} alt={item.name} />
+                                  ) : (
+                                    <div className="thumb-placeholder">👕</div>
+                                  )}
+                                </div>
+                                <div className="item-details">
+                                  <p className="item-name">{item.name}</p>
+                                  <p className="item-qty-price">Qty: {item.quantity} × ₹{item.price.toFixed(2)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="order-card-footer">
+                          <div className="payment-summary">
+                            <span className="method-label">Payment: {order.paymentMethod}</span>
+                            <span className={`payment-status ${order.paymentStatus.toLowerCase()}`}>{order.paymentStatus}</span>
+                          </div>
+                          <div className="order-total">
+                            <span className="total-label">Total Amount</span>
+                            <span className="total-value">₹{order.totalAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="order-card-actions">
+                          <button className="track-btn">Track Order</button>
+                          <button className="reorder-btn">Reorder</button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

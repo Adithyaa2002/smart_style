@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
+    trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
   },
   password: {
@@ -25,8 +26,14 @@ const userSchema = new mongoose.Schema({
     enum: ['customer', 'vendor', 'admin'],
     default: 'customer'
   },
-  resetPasswordToken: String,
-  resetPasswordExpires: Date
+  resetToken: String,
+  resetTokenExpiry: Date,
+  otp: String,
+  otpExpires: Date,
+  isVerified: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true
 });

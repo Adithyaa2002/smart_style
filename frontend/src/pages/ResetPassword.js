@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 const ResetPassword = () => {
-  const [searchParams] = useSearchParams();
+  const { token } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -13,8 +13,6 @@ const ResetPassword = () => {
     confirmPassword: ''
   });
 
-  const token = searchParams.get('token');
-
   useEffect(() => {
     // Verify token when component loads
     if (token) {
@@ -24,7 +22,8 @@ const ResetPassword = () => {
 
   const verifyToken = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/auth/verify-reset-token/${token}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/auth/verify-reset-token/${token}`);
       if (response.ok) {
         setTokenValid(true);
       } else {
@@ -47,7 +46,8 @@ const ResetPassword = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

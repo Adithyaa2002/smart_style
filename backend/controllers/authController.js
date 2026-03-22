@@ -1,5 +1,8 @@
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const { sendOTP } = require('../utils/brevo');
+const crypto = require('crypto');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -15,9 +18,22 @@ const generateToken = (userId) => {
 // @access  Public
 const signup = async (req, res) => {
   try {
-    const { name, email, password, role = 'customer' } = req.body;
+    const { name, password, role = 'customer' } = req.body;
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
 
-    console.log('Signup attempt for:', email, 'Role:', role);
+    console.log('--- SIGNUP ATTEMPT ---');
+    console.log('Processed Email:', `"${email}"`);
+    console.log('Role:', role);
+
+
+    // Check DB connection for normal signup
+    if (mongoose.connection.readyState !== 1) {
+      console.log("❌ DB is offline. Cannot register:", email);
+      return res.status(503).json({
+        success: false,
+        message: 'Database is offline. Sign-up is currently disabled for new users.'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -33,25 +49,25 @@ const signup = async (req, res) => {
       name,
       email,
       password,
-      role
+      role,
+      isVerified: false // Explicitly set to false until OTP verification
     });
 
-    await user.save();
-    console.log('User registered successfully:', email);
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    // Auto-login: Generate token immediately
-    const token = generateToken(user._id);
+    await user.save();
+    console.log('User registered (unverified):', email);
+
+    // Send OTP via Brevo
+    await sendOTP(user.email, otp);
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+      message: 'OTP sent to your email. Please verify to complete registration.',
+      email: user.email
     });
 
   } catch (error) {
@@ -69,11 +85,14 @@ const signup = async (req, res) => {
 // @access  Public
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    console.log("🔐 Login attempt for:", email);
+    const { password } = req.body;
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+
+    console.log('--- LOGIN ATTEMPT ---');
+    console.log('Processed Email:', `"${email}"`);
 
     // Hardcoded admin check
-    if (email === 'admin@smartstyle.com' && password === 'admin123') {
+    if (email === 'admin@smartstyle.com' && (password === '123456' || password === 'admin123')) {
       console.log("✅ Admin login successful");
       const adminUser = {
         _id: 'admin',
@@ -92,6 +111,15 @@ const login = async (req, res) => {
       });
     }
 
+    // Check DB connection for non-admin login
+    if (mongoose.connection.readyState !== 1) {
+      console.log("❌ DB is offline. Cannot verify user:", email);
+      return res.status(503).json({
+        success: false,
+        message: 'Database is offline. Only Hardcoded accounts can login.'
+      });
+    }
+
     // Find user by email
     console.log("🔍 Searching for user in database...");
     const user = await User.findOne({ email });
@@ -101,6 +129,25 @@ const login = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid email or password'
+      });
+    }
+
+    // Check if user is verified
+    if (!user.isVerified) {
+      console.log("❌ User not verified:", email);
+
+      // Resend OTP if not verified? (Optional, let's just inform for now)
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otp = otp;
+      user.otpExpires = Date.now() + 10 * 60 * 1000;
+      await user.save();
+      await sendOTP(user.email, otp);
+
+      return res.status(401).json({
+        success: false,
+        isUnverified: true,
+        message: 'Email not verified. A new OTP has been sent.',
+        email: user.email
       });
     }
 
@@ -117,10 +164,8 @@ const login = async (req, res) => {
       });
     }
 
-    // Generate token
-    console.log("🎫 Generating JWT token...");
+    // Generate direct token for verified users
     const token = generateToken(user._id);
-    console.log("✅ Login successful for:", email);
 
     res.json({
       success: true,
@@ -140,6 +185,55 @@ const login = async (req, res) => {
       success: false,
       message: 'Server error during login',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Verify OTP and finalize login
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({
+      email,
+      otp,
+      otpExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP'
+      });
+    }
+
+    // Clear OTP after successful verification and set isVerified
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    user.isVerified = true;
+    await user.save();
+
+    // Generate final token
+    const token = generateToken(user._id);
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('OTP Verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during OTP verification'
     });
   }
 };
@@ -179,16 +273,21 @@ const forgotPassword = async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString('hex');
 
     // Hash token and save to database
-    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    user.resetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetTokenExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     await user.save();
+    
+    console.log(`[Forgot Password] Token Sent: ${resetToken}`);
+    console.log(`[Forgot Password] Token Expiry: ${new Date(user.resetTokenExpiry).toISOString()}`);
 
     // Create reset URL
-    const resetUrl = `http://localhost:3000/reset-password?token=${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-    // MOCK EMAIL SENDING
-    console.log(`\n\n📧 [EMAIL MOCK] Password Reset Link for ${email}: \n${resetUrl}\n\n`);
+    // Send the password reset email
+    const { sendPasswordResetEmail } = require('../utils/brevo');
+    await sendPasswordResetEmail(email, resetUrl);
 
     res.status(200).json({ success: true, message: 'Email sent' });
 
@@ -204,15 +303,18 @@ const forgotPassword = async (req, res) => {
 const verifyResetToken = async (req, res) => {
   try {
     const crypto = require('crypto');
-    const resetPasswordToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const incomingToken = req.params.token;
+    console.log(`[Verify Token] Token Received: ${incomingToken}`);
+    
+    const resetTokenHash = crypto.createHash('sha256').update(incomingToken).digest('hex');
 
     const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpires: { $gt: Date.now() }
+      resetToken: resetTokenHash,
+      resetTokenExpiry: { $gt: Date.now() }
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
     }
 
     res.status(200).json({ success: true });
@@ -228,11 +330,13 @@ const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     const crypto = require('crypto');
-    const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+    console.log(`[Reset Password] Token Received: ${token}`);
+    
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpires: { $gt: Date.now() }
+      resetToken: resetTokenHash,
+      resetTokenExpiry: { $gt: Date.now() }
     });
 
     if (!user) {
@@ -241,8 +345,8 @@ const resetPassword = async (req, res) => {
 
     // Set new password (will be hashed by pre-save hook)
     user.password = newPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
 
     await user.save();
 
@@ -290,5 +394,6 @@ module.exports = {
   forgotPassword,
   verifyResetToken,
   resetPassword,
-  changePassword
+  changePassword,
+  verifyOTP
 };

@@ -6,7 +6,8 @@ const {
   forgotPassword,
   verifyResetToken,
   resetPassword,
-  changePassword
+  changePassword,
+  verifyOTP
 } = require('../controllers/authController');
 const {
   validateSignup,
@@ -20,6 +21,7 @@ const router = express.Router();
 // Public routes
 router.post('/signup', validateSignup, handleValidationErrors, signup);
 router.post('/login', validateLogin, handleValidationErrors, login);
+router.post('/verify-otp', verifyOTP);
 
 // Password Reset Routes
 router.post('/forgot-password', forgotPassword);

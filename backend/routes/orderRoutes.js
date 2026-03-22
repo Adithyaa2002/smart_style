@@ -6,7 +6,7 @@ const Product = require("../models/Product");
 // ✅ PLACE ORDER + AUTO STOCK REDUCTION
 router.post("/", async (req, res) => {
   try {
-    const { customerId, items, totalAmount, paymentStatus, shippingAddress } = req.body;
+    const { customerId, items, totalAmount, paymentStatus, paymentMethod, shippingAddress } = req.body;
 
     // 1️⃣ Validate Stock & Enrich Items with Vendor ID
     const enrichedItems = [];
@@ -36,6 +36,7 @@ router.post("/", async (req, res) => {
       items: enrichedItems,
       totalAmount,
       paymentStatus,
+      paymentMethod,
       shippingAddress
     });
 
@@ -56,6 +57,27 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to place order" });
+  }
+});
+
+// ✅ GET ALL ORDERS (ADMIN)
+router.get("/", async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 }).lean();
+
+    // Resolve names manually since customerId is a string email rather than an ObjectId ref
+    const User = require("../models/User");
+    const enhancedOrders = await Promise.all(orders.map(async (order) => {
+      const user = await User.findOne({ email: order.customerId }).select('name').lean();
+      return {
+        ...order,
+        customerName: user ? user.name : "Unknown User"
+      };
+    }));
+
+    res.json(enhancedOrders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -80,27 +102,16 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ GET ALL ORDERS (Admin)
-router.get("/", async (req, res) => {
+// ✅ UPDATE ORDER STATUS (ADMIN)
+router.patch("/:id", async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ✅ UPDATE ORDER STATUS
-router.patch("/:id/status", async (req, res) => {
-  try {
-    const { status } = req.body;
+    const { status, paymentStatus } = req.body;
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { status },
+      { status, paymentStatus },
       { new: true }
     );
-    if (!order) return res.status(404).json({ message: "Order not found" });
-
+    if (!order) return res.status(404).json({ error: "Order not found" });
     res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ error: err.message });

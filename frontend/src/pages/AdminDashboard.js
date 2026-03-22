@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import './AdminDashboard.css';
 
 const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
@@ -19,8 +20,37 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [banners, setBanners] = useState([]); // NEW
   const [storeSettings, setStoreSettings] = useState({
-    maintenanceMode: false
+    maintenanceMode: false,
+    helpline: '',
+    officialEmail: ''
   });
+
+  const handleSettingChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setStoreSettings(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const saveSettings = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(storeSettings)
+      });
+      const data = await response.json();
+      if (data.success || data._id) {
+        alert('✅ Settings saved successfully!');
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      alert('❌ Failed to save settings.');
+    }
+  };
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +66,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
       }
       setAdminUser(savedUser);
     }
+    fetchDashboardData();
   }, [user, navigate]);
 
   useEffect(() => {
@@ -112,7 +143,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
       }
     };
 
-    if (activeTab === 'customers') {
+    if (activeTab === 'customers' || activeTab === 'users') {
       fetchUsers();
     }
   }, [activeTab]);
@@ -223,27 +254,31 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
     }
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/admin/stats');
+      setDashboardStats(res.data.stats);
+      setRecentActivities(res.data.activities);
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+    }
+  };
   const handleLogout = () => {
     onLogout(); // Call parent logout function
     navigate('/');
   };
 
-  // Mock data for dashboard
-  const dashboardStats = {
-    totalUsers: 1247,
-    totalProducts: 89,
-    totalOrders: 543,
-    revenue: '$45,230',
-    activeTryOns: 234,
-    conversionRate: '12.4%'
-  };
+  // Dashboard stats and activities should be fetched from API for "true events"
+  const [dashboardStats, setDashboardStats] = useState({
+    totalUsers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    revenue: "₹0.00",
+    activeTryOns: 0,
+    conversionRate: "0%"
+  });
 
-  const recentActivities = [
-    { id: 1, user: 'John Doe', action: 'Purchased Summer Dress', time: '2 mins ago' },
-    { id: 2, user: 'Sarah Smith', action: 'Virtual Try-On Completed', time: '5 mins ago' },
-    { id: 3, user: 'Mike Johnson', action: 'Account Created', time: '10 mins ago' },
-    { id: 4, user: 'Emma Wilson', action: 'Product Review Added', time: '15 mins ago' }
-  ];
+  const [recentActivities, setRecentActivities] = useState([]);
 
   if (!adminUser) {
     return <div className="loading">Loading...</div>;
@@ -278,7 +313,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
             <button className={`menu-item ${activeTab === 'products' ? 'active' : ''}`} onClick={() => setActiveTab('products')}>
               <span>👕</span> Inventory
             </button>
-            <button className={`menu-item ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => setActiveTab('customers')}>
+            <button className={`menu-item ${activeTab === 'customers' || activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('customers')}>
               <span>👥</span> Customers
             </button>
             <button className={`menu-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
@@ -289,6 +324,12 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
             </button>
             <button className={`menu-item ${activeTab === 'reviews' ? 'active' : ''}`} onClick={() => setActiveTab('reviews')}>
               <span>⭐</span> Review Management
+            </button>
+            <button className={`menu-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
+              <span>📈</span> Analytics
+            </button>
+            <button className={`menu-item ${activeTab === 'tryons' ? 'active' : ''}`} onClick={() => setActiveTab('tryons')}>
+              <span>🎯</span> Virtual Try-Ons
             </button>
           </div>
         </nav>
@@ -349,14 +390,18 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
               <div className="recent-activity">
                 <h3>Recent Activity</h3>
                 <div className="activity-list">
-                  {recentActivities.map(activity => (
-                    <div key={activity.id} className="activity-item">
-                      <div className="activity-content">
-                        <strong>{activity.user}</strong> {activity.action}
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map(activity => (
+                      <div key={activity.id} className="activity-item">
+                        <div className="activity-content">
+                          <strong>{activity.user}</strong> {activity.action}
+                        </div>
+                        <span className="activity-time">{activity.time}</span>
                       </div>
-                      <span className="activity-time">{activity.time}</span>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="no-activity">No recent activity found.</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -445,19 +490,9 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
             </div>
           )}
 
-          {activeTab === 'products' && (
-            <div className="products-tab">
-              <h2>Product Catalog</h2>
-              <p>Product management interface coming soon...</p>
-            </div>
-          )}
+          {activeTab === 'products' && <ProductsManager />}
 
-          {activeTab === 'orders' && (
-            <div className="orders-tab">
-              <h2>Order Management</h2>
-              <p>Order management interface coming soon...</p>
-            </div>
-          )}
+          {activeTab === 'orders' && <OrdersManager />}
 
           {activeTab === 'settings' && (
             <div className="settings-tab">
@@ -629,6 +664,334 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
             </div>
           )}
         </main>
+      </div >
+    </div >
+  );
+};
+
+const OrdersManager = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterPayment, setFilterPayment] = useState("All");
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('http://localhost:5000/api/orders');
+      setOrders(res.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError('Failed to load orders. Please ensure the backend and database are running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    const orderId = order._id.startsWith('ORD') ? order._id : `ORD${order._id.slice(-5).toUpperCase()}`;
+    const matchesSearch =
+      orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerId.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = filterStatus === "All" || order.status === filterStatus;
+    const matchesPayment = filterPayment === "All" || order.paymentStatus === filterPayment;
+
+    return matchesSearch && matchesStatus && matchesPayment;
+  });
+
+  const handleUpdateStatus = async (orderId, updates) => {
+    try {
+      await axios.patch(`http://localhost:5000/api/orders/${orderId}`, updates);
+      setOrders(orders.map(o => o._id === orderId ? { ...o, ...updates } : o));
+    } catch (err) {
+      setOrders(orders.map(o => o._id === orderId ? { ...o, ...updates } : o));
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+  };
+
+  if (loading) return <div className="tab-loading">Loading orders...</div>;
+  if (error) return <div className="tab-error">{error}</div>;
+
+  return (
+    <div className="orders-tab">
+      <div className="tab-header">
+        <h2>Order Management</h2>
+        <div className="header-actions">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Search by ID or Name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="admin-search-input"
+            />
+          </div>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="admin-filter-select">
+            <option value="All">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value)} className="admin-filter-select">
+            <option value="All">All Payment</option>
+            <option value="Paid">Paid</option>
+            <option value="Pending">Pending</option>
+            <option value="Failed">Failed</option>
+            <option value="Refunded">Refunded</option>
+          </select>
+          <button onClick={fetchOrders} className="refresh-icon-btn" title="Refresh Data">🔄</button>
+        </div>
+      </div>
+
+      <div className="table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>User Name / User ID</th>
+              <th>Order Date & Time</th>
+              <th>Total Amount (₹)</th>
+              <th>Payment Method</th>
+              <th>Payment Status</th>
+              <th>Order Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredOrders.map(order => (
+              <tr key={order._id}>
+                <td className="order-id">{order._id.startsWith('ORD') ? order._id : `ORD${order._id.slice(-5).toUpperCase()}`}</td>
+                <td>
+                  <div className="customer-info">
+                    <span className="customer-name">{order.customerName}</span>
+                    <span className="customer-email">{order.customerId}</span>
+                  </div>
+                </td>
+                <td>{formatDate(order.createdAt)}</td>
+                <td className="amount-cell">{formatCurrency(order.totalAmount)}</td>
+                <td>
+                  <span className={`method-badge ${order.paymentMethod?.toLowerCase()}`}>
+                    {order.paymentMethod || 'Unknown'}
+                  </span>
+                </td>
+                <td>
+                  <select
+                    value={order.paymentStatus}
+                    onChange={(e) => handleUpdateStatus(order._id, { paymentStatus: e.target.value })}
+                    className={`status-select payment-${order.paymentStatus.toLowerCase()}`}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Failed">Failed</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                </td>
+                <td>
+                  <select
+                    value={order.status}
+                    onChange={(e) => handleUpdateStatus(order._id, { status: e.target.value })}
+                    className={`status-select order-${order.status.toLowerCase()}`}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Processing">Processing</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </td>
+                <td>
+                  <button
+                    className="view-details-btn"
+                    title="View Items"
+                    onClick={() => setSelectedOrder(order)}
+                  >
+                    📦
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Order Items Modal */}
+      {selectedOrder && (
+        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Order Details: {selectedOrder._id.startsWith('ORD') ? selectedOrder._id : `ORD${selectedOrder._id.slice(-5).toUpperCase()}`}</h3>
+              <button className="close-btn" onClick={() => setSelectedOrder(null)}>✖</button>
+            </div>
+            <div className="modal-body">
+              <div className="customer-detail">
+                <p><strong>Customer:</strong> {selectedOrder.customerName}</p>
+                <p><strong>Email:</strong> {selectedOrder.customerId}</p>
+              </div>
+              <div className="items-list">
+                <table className="modal-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Price</th>
+                      <th>Qty</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedOrder.items || [
+                      { name: "Demo Product", price: selectedOrder.totalAmount, quantity: 1 }
+                    ]).map((item, idx) => (
+                      <tr key={idx}>
+                        <td>{item.name}</td>
+                        <td>₹{item.price.toFixed(2)}</td>
+                        <td>{item.quantity}</td>
+                        <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="order-summary">
+                <p className="final-total">Total Amount: <span>{formatCurrency(selectedOrder.totalAmount)}</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ProductsManager = () => {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('http://localhost:5000/api/products');
+      setProducts(res.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/products/${productId}`);
+      setProducts(products.filter(p => p._id !== productId));
+    } catch (err) {
+      alert('Failed to delete product');
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const getStockStatus = (stock) => {
+    if (stock === 0) return { label: 'Out of Stock', class: 'out-of-stock' };
+    if (stock <= 5) return { label: 'Low Stock', class: 'low-stock' };
+    return { label: 'Active', class: 'active' };
+  };
+
+  if (loading) return <div className="tab-loading">Loading products...</div>;
+  if (error) return <div className="tab-error">{error}</div>;
+
+  return (
+    <div className="products-tab">
+      <div className="tab-header">
+        <h2>Product Catalog</h2>
+        <button onClick={fetchProducts} className="refresh-btn">🔄 Refresh</button>
+      </div>
+
+      <div className="table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map(product => {
+              const status = getStockStatus(product.stock);
+              return (
+                <tr key={product._id}>
+                  <td className="order-id">SS-PRD-{product._id.slice(-4).toUpperCase()}</td>
+                  <td>
+                    <div className="product-cell-info">
+                      {product.image && <img src={`http://localhost:5000${product.image}`} alt="" className="mini-thumb" />}
+                      <span>{product.name}</span>
+                    </div>
+                  </td>
+                  <td className="category-cell">{product.category}</td>
+                  <td className="amount-cell">{formatCurrency(product.price)}</td>
+                  <td>{product.stock}</td>
+                  <td>
+                    <span className={`stock-badge ${status.class}`}>
+                      {status.label}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      className="delete-btn"
+                      onClick={() => handleDeleteProduct(product._id)}
+                      title="Delete Product"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

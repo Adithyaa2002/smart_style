@@ -91,48 +91,58 @@
     font-size: 1.5rem;
 }
 
-/* TABS */
-.payment-tabs {
+/* Simplified Selection */
+.payment-selection-simple {
     display: flex;
+    flex-direction: column;
     gap: 15px;
     margin-bottom: 25px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 15px;
 }
 
-.tab-btn {
-    flex: 1;
-    padding: 12px;
-    border: 2px solid #f0f0f0;
-    background: white;
-    border-radius: 8px;
-    font-weight: 600;
-    color: #666;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 1rem;
+.selection-card {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    gap: 15px;
+    padding: 18px;
+    border: 2px solid #f0f0f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
-.tab-btn:hover {
-    border-color: #ddd;
+.selection-card:hover {
     background: #f9f9f9;
+    border-color: #ddd;
 }
 
-.tab-btn.active {
+.selection-card.active {
     border-color: #007bff;
-    background: #eef7ff;
-    color: #007bff;
+    background: #f0f7ff;
 }
 
-/* FORMS */
-.payment-content {
-    min-height: 250px;
+.selection-card input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
 }
 
+.selection-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.selection-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111;
+}
+
+.selection-desc {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* Form Groups */
 .input-group {
     margin-bottom: 15px;
     display: flex;
@@ -169,68 +179,17 @@
     flex: 1;
 }
 
-/* UPI Specific */
-.upi-suggestions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-.upi-suggestions span {
-    background: #f0f0f0;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    color: #555;
-    transition: background 0.2s;
-}
-
-.upi-suggestions span:hover {
-    background: #e0e0e0;
-}
-
-.qr-placeholder {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-.qr-box {
-    width: 150px;
-    height: 150px;
-    background: #f8f9fa;
-    border: 2px dashed #ccc;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #888;
-    border-radius: 12px;
-}
-
-/* COD Specific */
-.cod-info {
-    text-align: center;
-    padding: 30px;
-    color: #555;
-    background: #fff8e1;
-    border-radius: 8px;
-    border: 1px solid #ffeeda;
-}
-
 /* Pay Button */
 .pay-now-btn {
     width: 100%;
-    margin-top: 25px;
-    padding: 16px;
+    margin-top: 10px;
+    padding: 18px;
     background: #27ae60;
     color: white;
     font-size: 1.1rem;
     font-weight: 700;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     transition: background 0.2s, transform 0.1s;
     box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);

@@ -20,26 +20,6 @@ const Login = ({ setUser }) => {
     setLoading(true);
 
     try {
-      // ✅ Hardcoded Admin Login
-      if (formData.email === "admin@smartstyle.com" && formData.password === "admin123") {
-        const adminUser = {
-          name: "Admin",
-          email: formData.email,
-          role: "admin",
-        };
-
-        localStorage.setItem("user", JSON.stringify(adminUser));
-        localStorage.setItem("token", "admin-token");
-
-        setUser(adminUser);
-        setSuccess("Admin login successful!");
-        setLoading(false);
-
-        navigate("/admin-dashboard");
-        return;
-      }
-
-      // ✅ Normal user login (Customer or Vendor)
       const response = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,38 +29,45 @@ const Login = ({ setUser }) => {
         }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || "Login failed");
-      }
-
       const data = await response.json();
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      setUser(data.user);
-      setSuccess("Login successful! Redirecting...");
-      setLoading(false);
-
-      // ✅ Redirect based on role
-      if (data.user.role === "customer") {
-        navigate("/customer-dashboard");
-      } else if (data.user.role === "vendor") {
-        navigate("/vendor-dashboard");
-      } else {
-        throw new Error("Unknown role");
+      if (!response.ok) {
+        if (data.isUnverified) {
+          setError(data.message);
+          setLoading(false);
+          // Optionally redirect to signup or a verification page
+          // navigate("/signup", { state: { email: formData.email } });
+          return;
+        }
+        throw new Error(data.message || "Login failed");
       }
+
+      loginSuccess(data);
     } catch (err) {
       setLoading(false);
       setError(err.message);
     }
   };
 
+  const loginSuccess = (data) => {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
+    setSuccess("Login successful! Redirecting...");
+    setLoading(false);
+
+    if (data.user.role === "customer") {
+      navigate("/customer-dashboard");
+    } else if (data.user.role === "vendor") {
+      navigate("/vendor-dashboard");
+    } else if (data.user.role === "admin") {
+      navigate("/admin-dashboard");
+    }
+  };
+
   return (
     <div className="login-page">
       <div className="login-wrapper">
-        {/* LEFT SIDE: Promotional / Branding (Flipkart style) */}
         <div className="login-left">
           <div className="login-content">
             <h2>Login</h2>
@@ -91,7 +78,6 @@ const Login = ({ setUser }) => {
           </div>
         </div>
 
-        {/* RIGHT SIDE: Form */}
         <div className="login-right">
           <form onSubmit={handleLogin} className="login-form-groups">
             <div className="floating-input-group">
@@ -125,13 +111,11 @@ const Login = ({ setUser }) => {
                 tabIndex={0}
               >
                 {showPassword ? (
-                  /* Eye Off Icon (Hide) */
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#878787" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
                     <line x1="1" y1="1" x2="23" y2="23"></line>
                   </svg>
                 ) : (
-                  /* Eye Icon (Show) */
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#878787" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -148,8 +132,6 @@ const Login = ({ setUser }) => {
               {loading ? "Logging in..." : "Login"}
             </button>
 
-            {/* Removed OTP section per request */}
-
             <div className="login-links">
               <Link to="/forgot-password" style={{ textDecoration: 'none', color: '#2874f0' }}>Forgot Password?</Link>
               <br />
@@ -157,10 +139,9 @@ const Login = ({ setUser }) => {
                 New to SmartStyle? <Link to="/signup">Create an account</Link>
               </span>
             </div>
-
-            {error && <p className="error-text">{error}</p>}
-            {success && <p className="success-text">{success}</p>}
           </form>
+          {error && <p className="error-text">{error}</p>}
+          {success && <p className="success-text">{success}</p>}
         </div>
       </div>
     </div>

@@ -10,7 +10,6 @@ const fs = require("fs");
 
 const router = express.Router();
 
-const { GridFsStorage } = require("multer-gridfs-storage");
 const mongoose = require("mongoose");
 
 // --------------------- TEST ROUTE ---------------------

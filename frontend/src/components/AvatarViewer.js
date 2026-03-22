@@ -21,6 +21,8 @@ const GET_UNIFIED_SCALE = (userHeight_cm) => {
   return hVal / 157.5;
 };
 
+const BASE_SCALE = 1.0;
+
 
 // ✅ Added Error Boundary for 3D Models
 class ModelErrorBoundary extends React.Component {
@@ -139,7 +141,6 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
     const thicknessScale = 1.0;
 
     const isMale = baseModelUrl?.includes("male_base") || (measurements?.gender === "male");
-    const BASE_SCALE = 1.0;
 
     if (scene) {
       const finalS = GET_UNIFIED_SCALE(currentMeas?.height);
@@ -945,11 +946,10 @@ const ClothingModel = React.memo(({
   useFrame(() => {
     if (!scene || !groupRef.current || !avatarSkeleton) return;
 
-<<<<<<< HEAD
     // Ensure all world positions are fresh before calculating deltas
     avatarSkeleton.bones[0].updateMatrixWorld(true);
     scene.updateMatrixWorld(true);
-=======
+
     // DEBUG: Throttled log (every 3 seconds)
     if (!groupRef.current.adjLog) groupRef.current.adjLog = 0;
     if (Date.now() - groupRef.current.adjLog > 3000) {
@@ -978,7 +978,6 @@ const ClothingModel = React.memo(({
 
     // 1. GLOBAL & ADJUSTMENT SCALE
     const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
 
     let finalAdjScale = aScale || 1.0;
     let finalAdjX = aX || 0;
@@ -1005,16 +1004,6 @@ const ClothingModel = React.memo(({
     const g = groupRef.current;
     if (!g) return;
 
-<<<<<<< HEAD
-    // Detect garment type again for runtime tweaks if needed (mostly morphs)
-    const lowCat = (category || url || "").toLowerCase();
-    const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
-    const isFull = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("suit") || lowCat.includes("full") || lowCat.includes("gown") || lowCat.includes("drss") || lowCat.includes("body");
-
-    const currentDressMeas = dressMeasRef.current;
-    const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
-
-=======
     // Cross-gender/Body-type Depth Boost
     // - Women (Tops): 1.22x depth for bust. (Dresses balanced for back fit vs clipping)
     // - Men (Tops/Full): 1.05-1.15x depth
@@ -1024,7 +1013,6 @@ const ClothingModel = React.memo(({
 
     // Auto-snap to correct vertical level
     g.position.set(baseAutoX + finalAdjX, baseAutoY + finalAdjY, baseAutoZ + finalAdjZ);
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
 
     scene.traverse(child => {
       if (child.isSkinnedMesh && child.bindMode !== 'detached') {
@@ -1055,7 +1043,7 @@ const ClothingModel = React.memo(({
     // 2. MORPH TARGETS (1:1 Sync + Adaptive Looseness)
     const currentAvatarMeas = avatarMeasRef.current;
     const userChestRel = toInches(currentAvatarMeas?.chest);
-    const dressChestRel = Number(currentDressMeas?.chest) || userChestRel;
+    const dressChestRel = Number(dressMeasurements?.chest) || userChestRel;
     // 0.1 weight jump for every 10 inches of extra room (subtle but noticeable)
     const loosenessBonus = Math.max(0, (dressChestRel - userChestRel) / 40);
 
@@ -1074,42 +1062,24 @@ const ClothingModel = React.memo(({
           }
         };
 
-<<<<<<< HEAD
-        // Set to a relaxed buffer (0.25) to artificially puff out the mesh
-        // especially for the '0.83' scale which is extremely tight.
-        const baseBuff = 0.25;
-        // Specific back/hip safety boost to prevent constant tearing reported by user
-        const backSafety = 0.15;
+        // Apply buffer: 0.06 for men tops (tighter), 0.18 for female tops
+        const clothBuff = isFull ? (isMale ? 0.30 : 0.10) : (isTop ? (isMale ? 0.06 : 0.18) : 0.05);
+        setKey("measure-bust-circ-incr", chestW + clothBuff);
+        setKey("measure-bust-circ-inc", chestW + clothBuff); // Keep variant
+        setKey("measure-waist-circ-incr", waistW + clothBuff);
+        setKey("measure-hips-circ-incr", hipsW + clothBuff);
+        setKey("measure-thigh-circ-incr", thighW + clothBuff);
+        setKey("measure-calf-circ-incr", (thighW + clothBuff) * 0.7);
+        setKey("measure-shoulder-dist-incr", shoulderW + clothBuff);
+        setKey("BreastSize", chestW + clothBuff);
 
-        const totalBuff = baseBuff + loosenessBonus;
-
-        setKey("measure-bust-circ-incr", chestW + totalBuff);
-        setKey("measure-bust-circ-inc", chestW + totalBuff);
-        setKey("measure-waist-circ-incr", waistW + totalBuff + backSafety);
-        setKey("measure-waist-circ-inc", waistW + totalBuff + backSafety);
-        setKey("measure-hips-circ-incr", hipsW + totalBuff + backSafety + 0.1);
-        setKey("measure-hips-circ-inc", hipsW + totalBuff + backSafety + 0.1);
-        setKey("measure-hips", hipsW + totalBuff + backSafety + 0.1);
-        setKey("Hips", hipsW + totalBuff + backSafety + 0.1);
-        setKey("measure-buttocks", hipsW + totalBuff + backSafety + 0.1);
-        setKey("measure-glutes", hipsW + totalBuff + backSafety + 0.1);
-        setKey("measure-thigh-circ-incr", thighW + totalBuff + backSafety);
-        setKey("measure-thigh-circ-inc", thighW + totalBuff + backSafety);
-        setKey("measure-thighs", thighW + totalBuff + backSafety);
-        setKey("measure-shoulder-dist-incr", shoulderW + totalBuff);
-        setKey("measure-shoulder-dist-inc", shoulderW + totalBuff);
-        setKey("measure-calf-circ-incr", calfW + totalBuff + backSafety);
-        setKey("measure-calf-circ-inc", calfW + totalBuff + backSafety);
-        setKey("BreastSize", chestW + totalBuff);
-
-        // Secondary: If the model has explicit Size Keys (S, M, L, XL), apply them too
+        // Size Keys (S, M, L, XL) support from HEAD
         if (sizeRef.current) {
           const lSize = sizeRef.current.toLowerCase();
           for (const key in child.morphTargetDictionary) {
             const lowerKey = key.toLowerCase();
             const sizeList = ["s", "m", "l", "xl", "small", "medium", "large", "extralarge"];
             if (sizeList.some(s => lowerKey.includes(s))) {
-              // Reset other sizes first if they are prominent
               child.morphTargetInfluences[child.morphTargetDictionary[key]] = 0;
               if (lSize === 's' && (lowerKey === 's' || lowerKey.includes('small'))) setKey(key, 1);
               if (lSize === 'm' && (lowerKey === 'm' || lowerKey.includes('medium'))) setKey(key, 1);
@@ -1118,21 +1088,6 @@ const ClothingModel = React.memo(({
             }
           }
         }
-=======
-        // Apply buffer: 0.06 for men tops (tighter), 0.18 for female tops
-        const clothBuff = isFull ? (isMale ? 0.30 : 0.10) : (isTop ? (isMale ? 0.06 : 0.18) : 0.05);
-        setKey("measure-bust-circ-incr", chestW + clothBuff);
-        setKey("measure-bust-circ-incr.001", chestW + clothBuff);
-        setKey("measure-waist-circ-incr", waistW + clothBuff);
-        setKey("measure-hips-circ-incr", hipsW + clothBuff);
-        setKey("measure-thigh-circ-incr", thighW + clothBuff);
-        setKey("measure-calf-circ-incr", (thighW + clothBuff) * 0.7);
-        setKey("measure-knee-circ-incr", (thighW + clothBuff) * 0.5);
-        setKey("measure-shoulder-dist-incr", shoulderW + clothBuff);
-        setKey("measure-upperarm-circ-incr", (chestW + clothBuff) * 0.5);
-        setKey("breast-volume-vert-up", chestW + clothBuff);
-        setKey("BreastSize", chestW + clothBuff);
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
       }
     });
   });
@@ -1160,13 +1115,9 @@ export default function AvatarViewer({
   adjustmentX = 0,
   adjustmentY = 0,
   adjustmentZ = 0,
-<<<<<<< HEAD
-  selectedItems = [], // NEW: Array of { model3D, category, id }
-  name = ""
-=======
+  selectedItems = [], // Array of { model3D, category, id }
   name = "",
   hideSaveLook = false
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
 }) {
   const [avatarSkeleton, setAvatarSkeleton] = useState(null);
 
@@ -1363,49 +1314,32 @@ export default function AvatarViewer({
         position: "absolute", top: 20, right: 20, zIndex: 110,
         display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end"
       }}>
-<<<<<<< HEAD
-  {
-    localClothingUrl && (
-      <button
-        onClick={handleServerOptimization}
-        style={{
-          background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
-          padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
-=======
+        {localClothingUrl && (
+          <button
+            onClick={handleServerOptimization}
+            style={{
+              background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
+              padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
+              fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+            }}
+          >
+            {isOptimizing ? "⏳ Fitting..." : "✨ Perfect Fit"}
+          </button>
+        )}
         {!hideSaveLook && (
           <button
             onClick={handleDownload}
             style={{
               background: "#333", color: "#fff", border: "none",
               padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
-          fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
-        }}
-      >
-<<<<<<< HEAD
-    { isOptimizing ? "⏳ Fitting..." : "✨ Perfect Fit" }
-          </button >
-        )
-  }
-  <button
-    onClick={handleDownload}
-    style={{
-      background: "#333", color: "#fff", border: "none",
-      padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
-      fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
-    }}
-  >
-    📸 Save Look
-  </button>
-=======
+              fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+            }}
+          >
             📸 Save Look
           </button>
         )}
-
-
->>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
       </div >
     </div >
   );

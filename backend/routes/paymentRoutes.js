@@ -3,10 +3,20 @@ const router = express.Router();
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    try {
+        razorpay = new Razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
+        console.log("✅ Razorpay Initialized");
+    } catch (err) {
+        console.error("❌ Razorpay Init Error:", err.message);
+    }
+} else {
+    console.warn("⚠️ Razorpay Keys missing from .env. Payment features will be disabled.");
+}
 
 // ✅ CREATE ORDER
 router.post("/create-order", async (req, res) => {
@@ -19,6 +29,9 @@ router.post("/create-order", async (req, res) => {
             receipt: `receipt_${Date.now()}`,
         };
 
+        if (!razorpay) {
+            return res.status(500).json({ success: false, message: "Razorpay is not configured on this server" });
+        }
         const order = await razorpay.orders.create(options);
 
         res.status(200).json({

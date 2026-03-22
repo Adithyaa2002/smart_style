@@ -90,6 +90,12 @@ const VirtualTryOn = () => {
     };
   });
 
+  const [faceParams, setFaceParams] = useState(() => {
+    const saved = localStorage.getItem("faceParams");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [isFaceLoading, setIsFaceLoading] = useState(false);
+
   const updateGender = (gender) => {
     const updated = { ...measurements, gender };
     setMeasurements(updated);

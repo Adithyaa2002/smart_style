@@ -4,11 +4,8 @@ const Banner = require('../models/Banner');
 const multer = require('multer');
 const path = require('path');
 
-// Multer Config
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
-    filename: (req, file, cb) => cb(null, `banner-${Date.now()}${path.extname(file.originalname)}`)
-});
+const { storage } = require('../config/cloudinaryConfig');
+
 const upload = multer({ storage });
 
 // @route   GET /api/banners
@@ -30,7 +27,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 
         const banner = new Banner({
             title: req.body.title,
-            image: `/uploads/${req.file.filename}`,
+            image: req.file.path, // Cloudinary URL
             link: req.body.link
         });
 

@@ -133,8 +133,10 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
     const weightVal = Number(currentMeas?.weight || 60);
     const heightScale = hVal > 0 ? (hVal > 70 ? hVal / 157.5 : hVal / 62) : 1;
     const weightRatio = weightVal > 0 ? weightVal / 60 : 1;
-    let thicknessScale = 1 + (weightRatio - 1) * 0.4;
-    thicknessScale = Math.max(0.7, Math.min(1.4, thicknessScale));
+
+    // ✅ NEUTRALIZED: We use morph targets for body volume now.
+    // thicknessScale was causing misalignment with clothes.
+    const thicknessScale = 1.0;
 
     const isMale = baseModelUrl?.includes("male_base") || (measurements?.gender === "male");
     const BASE_SCALE = 1.0;
@@ -148,7 +150,7 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
       const lowCat = (tryOnCategory || "").toLowerCase();
       const lowName = (tryOnName || "").toLowerCase();
       const needsCompression = lowCat.includes("dress") || lowCat.includes("top") || lowName.includes("dress") || lowName.includes("shirt") || lowName.includes("top");
-      const compressionFactor = needsCompression ? 0.975 : 1.0; 
+      const compressionFactor = needsCompression ? 0.975 : 1.0;
 
       scene.scale.set(finalS * thicknessScale * compressionFactor, finalS, finalS * thicknessScale * compressionFactor);
 
@@ -526,6 +528,27 @@ const ClothingModel = React.memo(({
   name = "",
   onScaleCalculated
 }) => {
+  // --- PRECISION OVERRIDES ---
+  // These values ARE PERMANENT and act as the fallback if database resets to 0.
+  const PRECISION_OVERRIDES = {
+    "Bodycon dress Kneelength": {
+      male: { scale: 1.20, x: -0.01, y: 0.08, z: -0.09 },
+      female: { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 }
+    },
+    "Red bodycon": {
+      female: { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 }
+    },
+    "tshirt": {
+      male: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 },
+      female: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 }
+    },
+    "short dress": {
+      female: { scale: 0.90, x: 0.01, y: 0.04, z: 0.00 }
+    },
+    "gown": { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 },
+    "Printed Shirt": { scale: 1.10, x: 0.00, y: 0.00, z: 0.00 }
+  };
+
   const { scene } = useGLTF(url);
 
   // Refs to avoid stale closures in useFrame
@@ -585,9 +608,8 @@ const ClothingModel = React.memo(({
 
       let scaleToFit = 1.0;
       if (isFull) {
-        // Dresses/Frocks/FullBody - Calculated for perfect 1:1 default fit
-        // (Original 0.45 * 1.1 * 1.1 = ~0.545)
-        const targetWidth = isMale ? 0.545 : 0.55;
+        // Dresses/Frocks/FullBody
+        const targetWidth = isMale ? 0.50 : 0.46; // Increased male to 0.50 to resolve clipping
         scaleToFit = targetWidth / Math.max(0.1, size.x);
       } else if (isBottom) {
         // Bottomwear - Increased by 20% based on user preference (0.42 * 1.2 = 0.504)
@@ -607,8 +629,7 @@ const ClothingModel = React.memo(({
       setAutoScale(scaleToFit);
       if (onScaleCalculated) onScaleCalculated(scaleToFit);
 
-      // --- CRITICAL BAKE: Scale and Center Geometry directly ---
-      // This ensures SkinnedMeshes respect the scale even when bound to bones
+      // --- CRITICAL BAKE: Material Settings ---
       scene.traverse(mesh => {
         if (mesh.isMesh || mesh.isSkinnedMesh) {
           mesh.castShadow = true;
@@ -628,17 +649,10 @@ const ClothingModel = React.memo(({
         }
       });
 
-      // --- SAFE CENTERING (SCENE POSITION) ---
-      // We don't touch geometry. For identically-rigged garments, their origin MUST match the avatar.
-      // Re-centering based on a bounding box will break the alignment.
-      scene.position.set(0, 0, 0);
-      scene.rotation.set(0, 0, 0); // Neutralize rotation
-      scene.scale.set(1, 1, 1); // Neutralize scale
-
-      // LOG THE FINAL SCALE (Visible in Browser Console)
+      // --- TUNE & LOG ---
       console.log(`👗 [AUTO-SCALE] Final Scale Applied: ${(scaleToFit * 100).toFixed(1)}% of original`);
 
-      // Mark as ready AFTER positioning and scaling
+      // Mark as ready AFTER initialization
       requestAnimationFrame(() => setIsInitialized(true));
     }
   }, [scene, url, category, isMale, onScaleCalculated]);
@@ -931,13 +945,67 @@ const ClothingModel = React.memo(({
   useFrame(() => {
     if (!scene || !groupRef.current || !avatarSkeleton) return;
 
+<<<<<<< HEAD
     // Ensure all world positions are fresh before calculating deltas
     avatarSkeleton.bones[0].updateMatrixWorld(true);
     scene.updateMatrixWorld(true);
+=======
+    // DEBUG: Throttled log (every 3 seconds)
+    if (!groupRef.current.adjLog) groupRef.current.adjLog = 0;
+    if (Date.now() - groupRef.current.adjLog > 3000) {
+      groupRef.current.adjLog = Date.now();
+      console.log(`🎚️ [ADJUST] Size:${adjRef.current.scale.toFixed(2)} X:${adjRef.current.x.toFixed(2)} Y:${adjRef.current.y.toFixed(2)} Z:${adjRef.current.z.toFixed(2)}`);
+    }
+
+    // Auto-detect Vertical Offset based on Category & Gender
+    const combinedCat = (category + " " + (url || "") + " " + (name || "")).toLowerCase();
+    const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
+    const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower"));
+    const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
+
+    let baseAutoY = 1.05; // Default for Male Tops
+    let baseAutoX = isMale ? -0.01 : 0.0; // Reduced left nudge
+    let baseAutoZ = 0.0;
+
+    if (isFull) {
+      baseAutoY = isMale ? 0.02 : 0.14; // Isolate Male vs Female FullBody (Tuned height)
+      baseAutoZ = isMale ? 0.07 : 0.0; // Pull forward for male to avoid chest clip
+    } else if (isBottom) {
+      baseAutoY = isMale ? 0.45 : 0.38;
+    } else if (isTop) {
+      baseAutoY = isMale ? -0.11 : -0.01; // Final precision user-found height
+    }
+
+    // 1. GLOBAL & ADJUSTMENT SCALE
+    const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
+
+    let finalAdjScale = aScale || 1.0;
+    let finalAdjX = aX || 0;
+    let finalAdjY = aY || 0;
+    let finalAdjZ = aZ || 0;
+
+    // ✅ APPLY HARDCODED OVERRIDES - THESE ARE THE 'AT ANY COST' VALUES
+    // If an item has a hardcoded override, it takes precedence over everything.
+    let override = PRECISION_OVERRIDES[name];
+    if (override) {
+      // Pick the correct gender-specific adjustment
+      const genderKey = isMale ? "male" : "female";
+      const actualOverride = override[genderKey] || (override.scale !== undefined ? override : null); // Fallback for old simple objects
+
+      if (actualOverride) {
+        console.log(`🛡️ [AVATAR] ${genderKey.toUpperCase()} OVERRIDE APPLIED for: ${name}`);
+        finalAdjScale = actualOverride.scale;
+        finalAdjX = actualOverride.x;
+        finalAdjY = actualOverride.y;
+        finalAdjZ = actualOverride.z;
+      }
+    }
 
     const g = groupRef.current;
     if (!g) return;
 
+<<<<<<< HEAD
     // Detect garment type again for runtime tweaks if needed (mostly morphs)
     const lowCat = (category || url || "").toLowerCase();
     const isTop = lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("tshirt") || lowCat.includes("jacket") || lowCat.includes("upper") || lowCat.includes("vest");
@@ -946,6 +1014,17 @@ const ClothingModel = React.memo(({
     const currentDressMeas = dressMeasRef.current;
     const { scale: aScale, x: aX, y: aY, z: aZ } = adjRef.current;
 
+=======
+    // Cross-gender/Body-type Depth Boost
+    // - Women (Tops): 1.22x depth for bust. (Dresses balanced for back fit vs clipping)
+    // - Men (Tops/Full): 1.05-1.15x depth
+    const zBoost = isFull ? (isMale ? 1.05 : 0.96) : (isTop ? (isMale ? 1.05 : 1.22) : 1.0);
+    const finalScale = BASE_SCALE * autoScale * finalAdjScale;
+    g.scale.set(finalScale, finalScale, finalScale * zBoost);
+
+    // Auto-snap to correct vertical level
+    g.position.set(baseAutoX + finalAdjX, baseAutoY + finalAdjY, baseAutoZ + finalAdjZ);
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
 
     scene.traverse(child => {
       if (child.isSkinnedMesh && child.bindMode !== 'detached') {
@@ -995,6 +1074,7 @@ const ClothingModel = React.memo(({
           }
         };
 
+<<<<<<< HEAD
         // Set to a relaxed buffer (0.25) to artificially puff out the mesh
         // especially for the '0.83' scale which is extremely tight.
         const baseBuff = 0.25;
@@ -1038,6 +1118,21 @@ const ClothingModel = React.memo(({
             }
           }
         }
+=======
+        // Apply buffer: 0.06 for men tops (tighter), 0.18 for female tops
+        const clothBuff = isFull ? (isMale ? 0.30 : 0.10) : (isTop ? (isMale ? 0.06 : 0.18) : 0.05);
+        setKey("measure-bust-circ-incr", chestW + clothBuff);
+        setKey("measure-bust-circ-incr.001", chestW + clothBuff);
+        setKey("measure-waist-circ-incr", waistW + clothBuff);
+        setKey("measure-hips-circ-incr", hipsW + clothBuff);
+        setKey("measure-thigh-circ-incr", thighW + clothBuff);
+        setKey("measure-calf-circ-incr", (thighW + clothBuff) * 0.7);
+        setKey("measure-knee-circ-incr", (thighW + clothBuff) * 0.5);
+        setKey("measure-shoulder-dist-incr", shoulderW + clothBuff);
+        setKey("measure-upperarm-circ-incr", (chestW + clothBuff) * 0.5);
+        setKey("breast-volume-vert-up", chestW + clothBuff);
+        setKey("BreastSize", chestW + clothBuff);
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
       }
     });
   });
@@ -1065,8 +1160,13 @@ export default function AvatarViewer({
   adjustmentX = 0,
   adjustmentY = 0,
   adjustmentZ = 0,
+<<<<<<< HEAD
   selectedItems = [], // NEW: Array of { model3D, category, id }
   name = ""
+=======
+  name = "",
+  hideSaveLook = false
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
 }) {
   const [avatarSkeleton, setAvatarSkeleton] = useState(null);
 
@@ -1263,32 +1363,51 @@ export default function AvatarViewer({
         position: "absolute", top: 20, right: 20, zIndex: 110,
         display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end"
       }}>
-        {localClothingUrl && (
+<<<<<<< HEAD
+  {
+    localClothingUrl && (
+      <button
+        onClick={handleServerOptimization}
+        style={{
+          background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
+          padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
+=======
+        {!hideSaveLook && (
           <button
-            onClick={handleServerOptimization}
+            onClick={handleDownload}
             style={{
-              background: isOptimizing ? "#555" : "#ff9800", color: "#fff", border: "none",
-              padding: "8px 16px", borderRadius: "20px", cursor: isOptimizing ? "wait" : "pointer",
-              fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
-            }}
-          >
-            {isOptimizing ? "⏳ Fitting..." : "✨ Perfect Fit"}
+              background: "#333", color: "#fff", border: "none",
+              padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
+          fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+        }}
+      >
+<<<<<<< HEAD
+    { isOptimizing ? "⏳ Fitting..." : "✨ Perfect Fit" }
+          </button >
+        )
+  }
+  <button
+    onClick={handleDownload}
+    style={{
+      background: "#333", color: "#fff", border: "none",
+      padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
+      fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+    }}
+  >
+    📸 Save Look
+  </button>
+=======
+            📸 Save Look
           </button>
         )}
-        <button
-          onClick={handleDownload}
-          style={{
-            background: "#333", color: "#fff", border: "none",
-            padding: "8px 16px", borderRadius: "20px", cursor: "pointer",
-            fontWeight: "bold", display: "flex", alignItems: "center", gap: "5px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
-          }}
-        >
-          📸 Save Look
-        </button>
-      </div>
-    </div>
+
+
+>>>>>>> 597890f (feat: Cloudinary migration, gender-aware 3D fit optimization, and UI cleanup)
+      </div >
+    </div >
   );
 }
 

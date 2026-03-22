@@ -81,7 +81,7 @@ const OrderDetails = () => {
                         {order.items.map((item, i) => (
                             <div key={i} className="order-item-row">
                                 <img
-                                    src={item.image?.startsWith("http") ? item.image : `http://localhost:5000${item.image}`}
+                                    src={item.image?.startsWith('http') ? item.image : `http://localhost:5000${item.image}`}
                                     alt={item.name}
                                     className="order-item-img"
                                 />

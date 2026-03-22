@@ -4,6 +4,7 @@ const express = require("express");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const multer = require("multer");
+const { storage } = require("../config/cloudinaryConfig");
 const path = require("path");
 const fs = require("fs");
 
@@ -21,11 +22,11 @@ router.get("/test-route", (req, res) => {
 router.get("/file/:filename", async (req, res) => {
   const { filename } = req.params;
   console.log(`[FILE] Request for: ${filename}`);
-  
+
   try {
     if (!mongoose.connection.db) {
-       console.error("[FILE] Database connection not ready!");
-       return res.status(503).json({ message: "Database connection not ready" });
+      console.error("[FILE] Database connection not ready!");
+      return res.status(503).json({ message: "Database connection not ready" });
     }
 
     const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
@@ -52,7 +53,7 @@ router.get("/file/:filename", async (req, res) => {
       console.error(`[FILE] Stream error for ${filename}:`, err);
       if (!res.headersSent) res.status(500).send("Stream error");
     });
-    
+
     downloadStream.pipe(res);
   } catch (err) {
     console.error(`[FILE] Exception serving ${filename}:`, err);
@@ -60,8 +61,7 @@ router.get("/file/:filename", async (req, res) => {
   }
 });
 
-// --------------------- GridFS Storage Configuration (Robust Alternative) ---------------------
-const storage = multer.memoryStorage();
+// --------------------- Cloudinary Configuration ---------------------
 const upload = multer({ storage });
 
 // Helper to upload buffer to GridFS
@@ -108,8 +108,8 @@ router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D
       sizes: Array.isArray(req.body.sizes) ? req.body.sizes : (req.body.sizes ? req.body.sizes.split(",").map(s => s.trim()) : []),
       colors: Array.isArray(req.body.colors) ? req.body.colors : (req.body.colors ? req.body.colors.split(",").map(c => c.trim()) : []),
       stock: req.body.stock,
-      image: imageFilename ? `/api/products/file/${imageFilename}` : null,
-      model3D: model3DFilename ? `/api/products/file/${model3DFilename}` : null,
+      image: imageFile ? imageFile.path : null, // Cloudinary URLs are in .path
+      model3D: model3DFile ? model3DFile.path : null, // Cloudinary URLs are in .path
       vendorId: req.body.vendorId,
       sizeChart: sizeChart
     };
@@ -368,7 +368,7 @@ router.put("/:id", (req, res) => {
         updateData.image = `/api/products/file/${imageFilename}`;
         console.log("📸 New image uploaded:", imageFilename);
       }
-      
+
       if (req.files && req.files['model3D']) {
         const model3DFilename = await uploadToGridFS(req.files['model3D'][0]);
         updateData.model3D = `/api/products/file/${model3DFilename}`;

@@ -26,9 +26,26 @@ def analyze_face(image_path):
     )
     
     with vision.FaceLandmarker.create_from_options(options) as landmarker:
-        # Load image using Mediapipe's own loader (better compatibility in 3.14)
+        # Load image using Mediapipe's own loader
         try:
-            mp_image = mp.Image.create_from_file(image_path)
+            # Check if it's a URL
+            if image_path.startswith('http'):
+                import urllib.request
+                import numpy as np
+                import tempfile
+                
+                print(f"DEBUG: Downloading image from URL: {image_path}", file=sys.stderr)
+                # Create a temporary file to store the downloaded image
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
+                    urllib.request.urlretrieve(image_path, tmp.name)
+                    local_path = tmp.name
+                
+                mp_image = mp.Image.create_from_file(local_path)
+                
+                # Cleanup temporary file later or keep track
+                # For simplicity, we just use it and it will be cleaned up by OS eventually or we can manually delete
+            else:
+                mp_image = mp.Image.create_from_file(image_path)
         except Exception as e:
             return {"error": f"Could not read image: {str(e)}"}
 

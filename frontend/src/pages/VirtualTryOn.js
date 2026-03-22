@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AvatarViewer from '../components/AvatarViewer';
+import { toast } from 'react-toastify';
 
 const VirtualTryOn = () => {
   const navigate = useNavigate();
@@ -37,9 +38,11 @@ const VirtualTryOn = () => {
 
   // Auto-load adjustments when selected product changes
   useEffect(() => {
-    if (selectedProducts.length === 0) return;
+    if (selectedProducts.length === 0) {
+      setClothingAdj({ scale: 1.0, x: 0, y: 0, z: 0 });
+      return;
+    }
     const lastProduct = selectedProducts[selectedProducts.length - 1];
-
     const combinedCat = ((lastProduct.type || "") + " " + (lastProduct.category || "") + " " + (lastProduct.name || "")).toLowerCase();
     const isTopwearOrDress = combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("jacket") || combinedCat.includes("tshirt") || combinedCat.includes("upper") || combinedCat.includes("dress") || combinedCat.includes("suit") || combinedCat.includes("outfit") || combinedCat.includes("frock") || combinedCat.includes("gown");
     const isWomen = combinedCat.includes("wom") || combinedCat.includes("female") || !measurements || measurements.gender !== "male";
@@ -67,13 +70,17 @@ const VirtualTryOn = () => {
     const isMenTopwear = !isWomen && isTopwearOrDress;
     const forceDefaults = (isWomen && isTopwearOrDress) || isMenTopwear;
 
+    console.log(`👗 Loading Adjustments for ${lastProduct.name}:`, {
+      scale: lastProduct.adjustmentScale,
+      y: lastProduct.adjustmentY
+    });
     setClothingAdj({
       scale: (isNeutralDB || forceDefaults) ? defScale : dbScale,
       x: (isNeutralDB || forceDefaults) ? defX : dbX,
       y: (isNeutralDB || forceDefaults) ? defY : dbY,
       z: (isNeutralDB || forceDefaults) ? defZ : dbZ,
     });
-  }, [selectedProducts.length, selectedProducts[selectedProducts.length - 1]?.id]);
+  }, [selectedProducts]); // Fix: Watch the array itself, not just length
 
   // MEASUREMENTS & FACE PARAMS
   const [measurements, setMeasurements] = useState(() => {
@@ -83,12 +90,48 @@ const VirtualTryOn = () => {
     };
   });
 
+  const updateGender = (gender) => {
+    const updated = { ...measurements, gender };
+    setMeasurements(updated);
+    localStorage.setItem("userMeasurements", JSON.stringify(updated));
+  };
+
+  const handleFaceUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsFaceLoading(true);
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/avatar/face-from-photo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setFaceParams(data.faceParams);
+        localStorage.setItem('faceParams', JSON.stringify(data.faceParams));
+        alert("✅ Face Generated Successfully! Switch to Preview to see changes.");
+      } else {
+        alert("❌ Error: " + (data.message || 'Face analysis failed'));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("❌ Upload Failed: " + error.message);
+    } finally {
+      setIsFaceLoading(false);
+    }
+  };
 
   // FETCH PRODUCTS AND HISTORY
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/products`);
+        const response = await fetch(`http://localhost:5000/api/products`);
         const data = await response.json();
         setProducts(data);
       } catch (err) {
@@ -104,7 +147,7 @@ const VirtualTryOn = () => {
       }
       try {
         console.log(`🔍 Fetching history for ${userData.email}...`);
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}`);
+        const response = await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}`);
         const data = await response.json();
         console.log("📥 Received history data:", data);
         if (data && data.tryOnHistory) {
@@ -240,7 +283,7 @@ const VirtualTryOn = () => {
     if (!userData || !userData.email) return;
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
+      const response = await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -252,13 +295,31 @@ const VirtualTryOn = () => {
     }
   };
 
+  const removeTryOnItem = async (e, productId) => {
+    e.stopPropagation();
+    const userData = getUserData();
+    if (!userData || !userData.email) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}/tryon/${productId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setTryOnHistory(data.tryOnHistory);
+      }
+    } catch (err) {
+      console.error("Failed to remove item:", err);
+    }
+  };
+
   const saveAdjustments = async () => {
     if (selectedProducts.length === 0) return;
     const lastProduct = selectedProducts[selectedProducts.length - 1];
     const productId = lastProduct._id || lastProduct.id;
     if (!productId) return alert("Cannot save: no product selected.");
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/products/${productId}/adjustments`, {
+      const response = await fetch(`http://localhost:5000/api/products/${productId}/adjustments`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -298,7 +359,7 @@ const VirtualTryOn = () => {
           const productId = item.id || item._id;
           if (productId) {
             console.log(`📤 Saving product: ${item.name} (${productId})`);
-            const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
+            const response = await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}/tryon`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -359,6 +420,7 @@ const VirtualTryOn = () => {
 
 
 
+
           {activeTab === 'browse' && (
             <div className="products-list">
               <h3>Available Products</h3>
@@ -375,7 +437,7 @@ const VirtualTryOn = () => {
                   const id = product._id || product.id;
                   const price = product.price;
                   const name = product.name;
-                  const image = product.image?.startsWith('http') ? product.image : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${product.image}`;
+                  const image = product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`;
 
                   return (
                     <div key={id} className="tryon-product-card">
@@ -415,8 +477,23 @@ const VirtualTryOn = () => {
               ) : (
                 <div className="tryon-products-grid">
                   {tryOnHistory.map((item, idx) => (
-                    <div key={idx} className="tryon-product-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/product/${item.productId}`)}>
-                      <img src={item.productImage?.startsWith("http") ? item.productImage : `http://localhost:5000${item.productImage}`} alt={item.productName} />
+                    <div key={idx} className="tryon-product-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => navigate(`/product/${item.productId}`)}>
+                      <button
+                        onClick={(e) => removeTryOnItem(e, item.productId)}
+                        style={{
+                          position: 'absolute', top: '8px', right: '8px',
+                          background: 'rgba(0,0,0,0.5)', color: 'white',
+                          border: 'none', borderRadius: '50%', width: '25px', height: '25px',
+                          cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                        }}
+                        title="Remove from history"
+                      >
+                        ×
+                      </button>
+                      <img
+                        src={item.productImage?.startsWith("http") ? item.productImage : `http://localhost:5000${item.productImage}`}
+                        alt={item.productName}
+                      />
                       <div className="product-info">
                         <h4>{item.productName}</h4>
                         <p style={{ fontSize: '0.8rem', color: '#666' }}>Tried on {new Date(item.triedAt || Date.now()).toLocaleDateString()}</p>
@@ -575,7 +652,14 @@ const VirtualTryOn = () => {
                     <AvatarViewer
                       measurements={measurements}
                       modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
-                      selectedItems={selectedProducts}
+                      clothingModelUrl={
+                        selectedProducts.length > 0
+                          ? (selectedProducts[selectedProducts.length - 1].model3D?.startsWith('http') ? selectedProducts[selectedProducts.length - 1].model3D : `http://localhost:5000${selectedProducts[selectedProducts.length - 1].model3D}`)
+                          : null
+                      }
+                      category={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].type || selectedProducts[selectedProducts.length - 1].category) : ""}
+                      name={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].name || selectedProducts[selectedProducts.length - 1].productName || selectedProducts[selectedProducts.length - 1].title || "Garment") : ""}
+                      faceParams={faceParams}
                       adjustmentScale={clothingAdj.scale}
                       adjustmentX={clothingAdj.x}
                       adjustmentY={clothingAdj.y}

@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import "./ProductDetails.css"; // We will create this next
 import axios from "axios";
 
+
 const ProductDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -164,7 +165,7 @@ const ProductDetails = () => {
                                 name={product.name}
                                 key={showTryOn ? `active-${product._id}` : "inactive"}
                             />
-                            <button 
+                            <button
                                 onClick={() => setShowTryOn(false)}
                                 style={{
                                     position: 'absolute', top: '10px', right: '10px', zIndex: 130,
@@ -216,7 +217,7 @@ const ProductDetails = () => {
                         </div>
                     ) : (
                         <img
-                            src={product.image?.startsWith("http") ? product.image : `http://localhost:5000${product.image}`}
+                            src={product.image?.startsWith('http') ? product.image : `http://localhost:5000${product.image}`}
                             alt={product.name}
                             className="main-product-img"
                         />
@@ -353,6 +354,7 @@ const ProductDetails = () => {
                                         const u = JSON.parse(uStr);
                                         if (u.email) {
                                             axios.post(`http://localhost:5000/api/customer/${u.email}/tryon`, {
+                                                userId: u.id || u._id,
                                                 productId: product._id,
                                                 productName: product.name,
                                                 productImage: product.image
@@ -435,7 +437,7 @@ const ProductDetails = () => {
                                     window.scrollTo(0, 0); // Scroll top
                                 }}>
                                     <img
-                                        src={rp.image?.startsWith("http") ? rp.image : `http://localhost:5000${rp.image}`}
+                                        src={rp.image?.startsWith('http') ? rp.image : `http://localhost:5000${rp.image}`}
                                         alt={rp.name}
                                     />
                                     <h4>{rp.name}</h4>

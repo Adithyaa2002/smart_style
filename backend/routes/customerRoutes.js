@@ -109,4 +109,21 @@ router.delete("/:email/tryon", async (req, res) => {
   }
 });
 
+// REMOVE SINGLE TRY-ON HISTORY ITEM
+router.delete("/:email/tryon/:productId", async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+  const productId = req.params.productId;
+  try {
+    const customer = await Customer.findOne({ email });
+    if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
+
+    customer.tryOnHistory = customer.tryOnHistory.filter(h => h.productId !== productId);
+    await customer.save();
+    res.json({ success: true, message: "Try-on item removed", tryOnHistory: customer.tryOnHistory });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

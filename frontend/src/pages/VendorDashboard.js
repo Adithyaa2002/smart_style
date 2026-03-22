@@ -163,7 +163,7 @@ const VendorDashboard = ({ user, onLogout }) => {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/products",
+        `http://localhost:5000/api/products`,
         formData,
         {
           headers: {
@@ -293,7 +293,7 @@ const VendorDashboard = ({ user, onLogout }) => {
                     {p.image && (
                       <img
                         className="product-image-small"
-                        src={`http://localhost:5000${p.image}`}
+                        src={p.image?.startsWith('http') ? p.image : `http://localhost:5000${p.image}`}
                         alt={p.name}
                       />
                     )}
@@ -557,7 +557,7 @@ const VendorDashboard = ({ user, onLogout }) => {
                       setNewProduct(prev => ({ ...prev, customColors: specials }));
                     }}
                   />
-                  <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>Selected: {Array.isArray(newProduct.colors) ? newProduct.colors.join(', ') : newProduct.colors}</p>
+                  <p style={{ fontSize: '12px', color: '#666', marginTop: '-5px', marginBottom: '10px' }}>Selected: {Array.isArray(newProduct.colors) ? newProduct.colors.join(', ') : newProduct.colors}</p>
                 </div>
               </div>
               <p style={{ fontSize: '12px', color: '#666', marginTop: '-5px', marginBottom: '10px' }}>Selected: {Array.isArray(newProduct.sizes) ? newProduct.sizes.join(', ') : newProduct.sizes}</p>
@@ -668,7 +668,7 @@ const VendorDashboard = ({ user, onLogout }) => {
                       <td>
                         {order.items.map((item, i) => (
                           <div key={i} style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '5px' }}>
-                            <img src={item.image?.startsWith("http") ? item.image : `http://localhost:5000${item.image}`} alt="" style={{ width: '30px', height: '30px', borderRadius: '4px' }} />
+                            <img src={item.image?.startsWith('http') ? item.image : `http://localhost:5000${item.image}`} alt="" style={{ width: '30px', height: '30px', borderRadius: '4px' }} />
                             <span style={{ fontSize: '0.85rem' }}>
                               {item.name} (x{item.quantity})
                             </span>
@@ -955,7 +955,7 @@ const VendorDashboard = ({ user, onLogout }) => {
                     {analyticsData.topProducts.map((p, i) => (
                       <tr key={i}>
                         <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {p.image && <img src={`http://localhost:5000${p.image}`} alt="" style={{ width: 40, height: 40, borderRadius: 4 }} />}
+                          {p.image && <img src={p.image?.startsWith('http') ? p.image : `http://localhost:5000${p.image}`} alt="" style={{ width: 40, height: 40, borderRadius: 4 }} />}
                           {p.name}
                         </td>
                         <td>{p.quantity}</td>

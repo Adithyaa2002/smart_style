@@ -133,11 +133,23 @@ const CustomerDashboard = ({ user, onLogout }) => {
       .catch((err) => console.log("❌ Failed to load profile", err));
   }, [customer.email]);
 
+  // --- Re-Fetch profile on switching to 'history' tab to get latest tryOnHistory ---
+  useEffect(() => {
+    if (activeTab === "history" && customer?.email) {
+      axios
+        .get(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}`)
+        .then((res) => {
+          if (res.data) setCustomer(res.data);
+        })
+        .catch((err) => console.log("❌ Failed to load history", err));
+    }
+  }, [activeTab, customer?.email]);
+
 
 
   // --- Fetch Brands ---
   useEffect(() => {
-    axios.get("http://localhost:5000/api/products/brands")
+    axios.get(`http://localhost:5000/api/products/brands`)
       .then(res => setBrands(res.data))
       .catch(err => console.error("Failed to fetch brands", err));
   }, []);
@@ -188,7 +200,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
   const [banners, setBanners] = useState([]);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/banners')
+    axios.get(`http://localhost:5000/api/banners`)
       .then(res => {
         if (Array.isArray(res.data)) setBanners(res.data);
         else setBanners([]);
@@ -234,6 +246,22 @@ const CustomerDashboard = ({ user, onLogout }) => {
     }
   };
 
+  const removeTryOnItem = async (e, productId) => {
+    e.stopPropagation(); // prevent card click
+    if (!customer?.email) return;
+
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}/tryon/${productId}`);
+      if (response.data.success) {
+        setCustomer({ ...customer, tryOnHistory: response.data.tryOnHistory });
+        toast.success("Item removed from history");
+      }
+    } catch (err) {
+      console.error("Failed to remove item:", err);
+      toast.error("Failed to remove item");
+    }
+  };
+
   const handleFaceUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -243,7 +271,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
     formData.append("photo", file);
 
     try {
-      const response = await axios.post("http://localhost:5000/api/avatar/face-from-photo", formData, {
+      const response = await axios.post(`http://localhost:5000/api/avatar/face-from-photo`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
@@ -383,7 +411,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                     {banners.map(b => (
                       <div key={b._id} style={{ position: 'relative', minWidth: '100%', height: '300px', flexShrink: 0 }}>
                         <img
-                          src={b.image.startsWith("http") ? b.image : `http://localhost:5000${b.image}`}
+                          src={b.image?.startsWith('http') ? b.image : `http://localhost:5000${b.image}`}
                           alt={b.title}
                           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px', cursor: 'pointer' }}
                           onClick={() => {
@@ -420,11 +448,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                             FOR YOU
                           </div>
                           <img
-                            src={
-                              product.image?.startsWith("http")
-                                ? product.image
-                                : `http://localhost:5000${product.image}`
-                            }
+                            src={product.image?.startsWith('http') ? product.image : `http://localhost:5000${product.image}`}
                             alt={product.name}
                           />
                           <button
@@ -700,11 +724,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                       <div key={product._id} className="smart-product-card">
                         <div className="card-image-container" onClick={() => navigate(`/product/${product._id}`, { state: product })} style={{ cursor: "pointer" }}>
                           <img
-                            src={
-                              product.image?.startsWith("http")
-                                ? product.image
-                                : `http://localhost:5000${product.image}`
-                            }
+                            src={product.image?.startsWith('http') ? product.image : `http://localhost:5000${product.image}`}
                             alt={product.name}
                           />
                           <button
@@ -853,7 +873,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                       <h2 style={{ fontSize: "1.2rem", margin: "0" }}>Measurements</h2>
                     </div>
 
-                    <div style={{ background: '#f0f0f0', padding: '10px', borderRadius: '5px', marginBottom: '10px', marginTop: '10px' }}>
+                    <div style={{ marginBottom: '10px', marginTop: '10px' }}>
                       <p style={{ margin: 0, fontWeight: 'bold', fontSize: '0.9rem' }}>
                         Body Type: {measurements.gender === "male" ? "👨 Male" : "👩 Female"}
                       </p>
@@ -867,7 +887,18 @@ const CustomerDashboard = ({ user, onLogout }) => {
                       )}
                     </div>
 
-
+                    <div style={{ margin: "10px 0", borderTop: "1px solid #ddd", paddingTop: "10px" }}>
+                      <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Upload Face Photo</label>
+                      <input
+                        type="file"
+                        id="avatar-face-upload"
+                        accept="image/*"
+                        onChange={handleFaceUpload}
+                        disabled={isFaceLoading || !isMeasurementEditable}
+                        style={{ fontSize: "0.8rem", width: "100%" }}
+                      />
+                      {isFaceLoading && <small style={{ color: "#e91e63" }}>Processing Face AI...</small>}
+                    </div>
 
                     {["chest", "waist", "hips", "thigh", "shoulders"].map((m) => {
                       let options = [];
@@ -949,13 +980,13 @@ const CustomerDashboard = ({ user, onLogout }) => {
                           fontSize: "14px"
                         }}
                       >
-                        🖊️ Edit Measurements
+                        🖊️ Edit
                       </button>
                     )}
                   </div>
 
                   {/* RIGHT: Avatar Viewer */}
-                  <div style={{ flex: 1, backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #eee", overflow: "hidden", position: "relative" }}>
+                  <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
                     <div style={{ width: "100%", height: "100%" }}>
                       <AvatarViewer
                         measurements={{
@@ -969,6 +1000,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                         modelUrl={measurements.gender === "male" ? "/models/male_base.glb" : "/models/female_base.glb"}
                         clothingModelUrl={selectedClothing}
                         faceParams={faceParams}
+                        hideSaveLook={true}
                       />
                     </div>
                   </div>
@@ -1063,11 +1095,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                 cart.items.map((item) => (
                   <div key={item._id || item.id} className="cart-item">
                     <img
-                      src={
-                        item.image?.startsWith("http")
-                          ? item.image
-                          : `http://localhost:5000${item.image}`
-                      }
+                      src={item.image?.startsWith('http') ? item.image : `http://localhost:5000${item.image}`}
                       alt={item.name}
                       className="cart-item-img"
                     />
@@ -1125,7 +1153,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
                 wishlist.map((item) => (
                   <div key={item._id || item.id} className="wishlist-item">
                     <img
-                      src={item.image?.startsWith("http") ? item.image : `http://localhost:5000${item.image}`}
+                      src={item.image?.startsWith('http') ? item.image : `http://localhost:5000${item.image}`}
                       alt={item.name}
                       className="wishlist-img"
                     />
@@ -1178,10 +1206,22 @@ const CustomerDashboard = ({ user, onLogout }) => {
               ) : (
                 <div className="catalog-grid-smart">
                   {customer.tryOnHistory.map((item, idx) => (
-                    <div key={idx} className="smart-product-card" onClick={() => navigate(`/product/${item.productId}`)} style={{ cursor: 'pointer' }}>
-                      <div className="card-image-container">
+                    <div key={idx} className="smart-product-card" onClick={() => navigate(`/product/${item.productId}`)} style={{ cursor: 'pointer', position: 'relative' }}>
+                      <div className="card-image-container" style={{ position: 'relative' }}>
+                        <button
+                          onClick={(e) => removeTryOnItem(e, item.productId)}
+                          style={{
+                            position: 'absolute', top: '8px', right: '8px',
+                            background: 'rgba(0,0,0,0.5)', color: 'white',
+                            border: 'none', borderRadius: '50%', width: '25px', height: '25px',
+                            cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                          }}
+                          title="Remove from history"
+                        >
+                          ×
+                        </button>
                         <img
-                          src={item.productImage?.startsWith("http") ? item.productImage : `http://localhost:5000${item.productImage}`}
+                          src={item.productImage?.startsWith('http') ? item.productImage : `http://localhost:5000${item.productImage}`}
                           alt={item.productName}
                         />
                       </div>

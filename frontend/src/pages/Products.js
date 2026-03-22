@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './Products.css';
 
+
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +38,7 @@ const Products = () => {
             <div className="product-card" key={product._id}>
               <div className="product-image-container">
                 <img
-                  src={product.image || 'https://via.placeholder.com/150'}
+                  src={product.image?.startsWith('http') ? product.image : `http://localhost:5000${product.image}`}
                   alt={product.name}
                   className="product-image"
                 />

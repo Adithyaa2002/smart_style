@@ -15,6 +15,18 @@ const PERFECT_ADJUSTMENTS = [
         adjustments: { adjustmentScale: 1.10, adjustmentX: 0.00, adjustmentY: 0.04, adjustmentZ: 0.01 }
     },
     {
+        name: "Red bodycon",
+        adjustments: { adjustmentScale: 1.10, adjustmentX: 0.00, adjustmentY: 0.04, adjustmentZ: 0.01 }
+    },
+    {
+        name: "short dress",
+        adjustments: { adjustmentScale: 0.90, adjustmentX: 0.01, adjustmentY: 0.04, adjustmentZ: 0.00 }
+    },
+    {
+        name: "gown",
+        adjustments: { adjustmentScale: 1.10, adjustmentX: 0.00, adjustmentY: 0.04, adjustmentZ: 0.01 }
+    },
+    {
         name: "tshirt",
         adjustments: { adjustmentScale: 1.00, adjustmentX: 0.00, adjustmentY: 0.00, adjustmentZ: 0.00 }
     },

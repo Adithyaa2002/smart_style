@@ -597,7 +597,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                 <div className="banner-list" style={{ display: 'grid', gap: '10px' }}>
                   {banners.map(b => (
                     <div key={b._id} style={{ border: '1px solid #eee', padding: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img src={`http://${window.location.hostname}:5000${b.image}`} style={{ width: '100px', height: '50px', objectFit: 'cover' }} alt="" />
+                      <img src={b.image?.startsWith('http') ? b.image : `http://${window.location.hostname}:5000${b.image}`} style={{ width: '100px', height: '50px', objectFit: 'cover' }} alt="" />
                       <div style={{ flex: 1 }}>
                         <strong>{b.title}</strong>
                         <p style={{ fontSize: '0.8rem', color: '#666' }}>{b.link}</p>
@@ -628,7 +628,7 @@ const AdminDashboard = ({ user, onLogout }) => { // Accept props from App.js
                       <div key={r.reviewId} style={{ border: '1px solid #eee', padding: '15px', borderRadius: '8px', background: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                            <img src={`http://${window.location.hostname}:5000${r.productImage}`} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} alt="" />
+                            <img src={r.productImage?.startsWith('http') ? r.productImage : `http://${window.location.hostname}:5000${r.productImage}`} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} alt="" />
                             <div>
                               <strong>{r.productName}</strong>
                               <div style={{ fontSize: '0.85rem', color: '#666' }}>By: {r.user} | {new Date(r.date).toLocaleDateString()}</div>

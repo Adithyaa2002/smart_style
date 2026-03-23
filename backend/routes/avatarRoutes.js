@@ -5,12 +5,21 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
-const { storage } = require('../config/cloudinaryConfig');
+const uploadDir = path.join(__dirname, '../uploads/faces');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+// Use LOCAL disk storage for face photos (not Cloudinary)
+// Face photos only need to exist long enough for the AI to analyze them
+const diskStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
 
 const upload = multer({
-    storage: storage,
+    storage: diskStorage,
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB Limit
 });
+
 
 // @desc    Analyze Face from Photo
 // @route   POST /api/avatar/face-from-photo
@@ -28,8 +37,14 @@ router.post('/face-from-photo', upload.single('photo'), async (req, res) => {
     // We try 'python' first.
     const pythonCommand = 'python';
     const scriptPath = path.join(__dirname, '../scripts/face_analysis.py');
+    const outputDir = path.join(__dirname, '../uploads/faces');
 
-    const pythonProcess = spawn(pythonCommand, [scriptPath, imagePath]);
+    // Ensure output directory exists
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const pythonProcess = spawn(pythonCommand, [scriptPath, imagePath, outputDir]);
 
     let dataString = '';
     let errorString = '';
@@ -82,7 +97,7 @@ router.post('/face-from-photo', upload.single('photo'), async (req, res) => {
             }
             const actualJson = dataString.substring(jsonStart);
             const result = JSON.parse(actualJson);
-            
+
             if (result.error) {
                 return res.status(400).json({ message: result.error });
             }

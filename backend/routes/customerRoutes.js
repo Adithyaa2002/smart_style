@@ -2,9 +2,32 @@
 const express = require("express");
 const router = express.Router();
 const Customer = require("../models/Customer"); // make sure model exists
+const mongoose = require("mongoose");
+
+// Helper to check if DB is offline
+const isOffline = () => mongoose.connection.readyState !== 1;
 
 // GET customer by email
 router.get("/:email", async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+
+  // ✅ OFFLINE ADMIN BYPASS
+  if (isOffline() && email === 'admin@smartstyle.com') {
+    return res.json({
+      _id: 'admin',
+      userId: 'admin',
+      name: 'Admin User (Offline)',
+      email: 'admin@smartstyle.com',
+      role: 'admin',
+      measurements: { height: "180", weight: "75", chest: "40", waist: "32", hips: "38" }
+    });
+  }
+
+  // ✅ FAST FAIL IF OFFLINE
+  if (isOffline()) {
+    return res.status(503).json({ error: "Database is offline. Only Admin profile is accessible." });
+  }
+
   try {
     const email = decodeURIComponent(req.params.email);
     const customer = await Customer.findOne({ email });
@@ -21,6 +44,11 @@ router.put("/:email", async (req, res) => {
   console.log("📥 Recieved Profile Update Request (Explicit)");
   const emailParam = decodeURIComponent(req.params.email);
   console.log("PARAMS email:", emailParam);
+
+  // ✅ OFFLINE CHECK
+  if (isOffline()) {
+    return res.status(503).json({ error: "Database is offline. Profiles cannot be updated." });
+  }
 
   try {
     let customer = await Customer.findOne({ email: emailParam });

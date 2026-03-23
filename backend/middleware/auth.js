@@ -17,6 +17,17 @@ const authMiddleware = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    // ✅ ADMIN OFFLINE BYPASS
+    if (decoded.userId === 'admin') {
+      req.user = {
+        _id: 'admin',
+        name: 'Admin',
+        email: 'admin@smartstyle.com',
+        role: 'admin'
+      };
+      return next();
+    }
+
     // Find user by ID from token
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) {

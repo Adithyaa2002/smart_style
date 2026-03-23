@@ -23,6 +23,26 @@ const GET_UNIFIED_SCALE = (userHeight_cm) => {
 
 const BASE_SCALE = 1.0;
 
+// --- PRECISION OVERRIDES ---
+// These values ARE PERMANENT and act as the fallback if database resets to 0.
+const PRECISION_OVERRIDES = {
+  "Bodycon dress Kneelength": {
+    male: { scale: 1.20, x: -0.01, y: 0.08, z: -0.09 },
+    female: { scale: 1.20, x: -0.01, y: 0.08, z: -0.09 }
+  },
+  "Red bodycon": {
+    female: { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 }
+  },
+  "tshirt": {
+    male: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 },
+    female: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 }
+  },
+  "short dress": {
+    female: { scale: 0.90, x: 0.01, y: 0.04, z: 0.00 }
+  },
+  "gown": { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 },
+  "Printed Shirt": { scale: 1.10, x: 0.00, y: 0.00, z: 0.00 }
+};
 
 // ✅ Added Error Boundary for 3D Models
 class ModelErrorBoundary extends React.Component {
@@ -75,9 +95,15 @@ class ModelErrorBoundary extends React.Component {
 }
 
 // ✅ Added hideBaseClothes prop
-const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory, name: tryOnName }) => {
+const AvatarModel = ({ measurements, faceParams, onSkeletonLoaded, onSceneDebug, baseModelUrl, tryOnCategory, name: tryOnName }) => {
   // Configurable Base Model
   const { scene } = useGLTF(baseModelUrl || "/models/female_base.glb");
+
+  console.log("🛠️ AvatarModel Prop Check:", {
+    hasFaceParams: !!faceParams,
+    skinColor: faceParams?.skin_color || faceParams?.color,
+    measurements: measurements?.height
+  });
 
   // Debug: Confirm inputs are arriving
   useEffect(() => {
@@ -89,6 +115,35 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
   useEffect(() => {
     measurementsRef.current = measurements;
   }, [measurements]);
+
+  // --- SKINTONE MAPPING ---
+  useEffect(() => {
+    if (!scene) return;
+    
+    // Use the correct key that the Python AI returns ('skinColor')
+    const skinColor = faceParams?.skinColor || faceParams?.skin_color || faceParams?.color || null;
+
+    scene.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        const name = (child.name || "").toLowerCase();
+        const isClothing = ["shirt", "dress", "pant", "suit", "shoe", "hair", "eye", "teeth"].some(k => name.includes(k));
+        const skinKeywords = ["body", "skin", "head", "face", "arm", "hand", "leg", "human", "avatar", "base", "torso", "neck"];
+        const isSkin = skinKeywords.some(k => name.includes(k)) && !isClothing;
+
+        if (isSkin && child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => {
+            if (skinColor) {
+              mat.color.set(skinColor);
+            } else {
+              // Reset to white (Original model texture color)
+              mat.color.set("#ffffff");
+            }
+          });
+        }
+      }
+    });
+  }, [scene, faceParams]);
 
   const bones = React.useRef({});
 
@@ -393,6 +448,11 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
           mats.forEach(mat => {
             // Ensure no accidental transparency on main body
             if (finalSkin) {
+              // Only apply skin color if the user has uploaded a photo and AI has analyzed it
+              const skinColor = faceParams?.skinColor || faceParams?.skin_color || faceParams?.color || null;
+              if (skinColor && mat.color.getHex() !== new THREE.Color(skinColor).getHex()) {
+                mat.color.set(skinColor);
+              }
               mat.transparent = false;
               mat.opacity = 1.0;
               mat.depthWrite = true;
@@ -450,8 +510,12 @@ const AvatarModel = ({ measurements, onSkeletonLoaded, onSceneDebug, baseModelUr
           }
         }
 
-        if (hideThisMesh) child.visible = false;
-        else if (isClothing) child.visible = true;
+        if (hideThisMesh) {
+          if (child.visible) console.error(`🚫 [HIDDEN] Hiding base mesh: ${name}`);
+          child.visible = false;
+        } else if (isClothing) {
+          child.visible = true;
+        }
 
       }
     });
@@ -529,27 +593,6 @@ const ClothingModel = React.memo(({
   name = "",
   onScaleCalculated
 }) => {
-  // --- PRECISION OVERRIDES ---
-  // These values ARE PERMANENT and act as the fallback if database resets to 0.
-  const PRECISION_OVERRIDES = {
-    "Bodycon dress Kneelength": {
-      male: { scale: 1.20, x: -0.01, y: 0.08, z: -0.09 },
-      female: { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 }
-    },
-    "Red bodycon": {
-      female: { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 }
-    },
-    "tshirt": {
-      male: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 },
-      female: { scale: 1.00, x: 0.00, y: 0.00, z: 0.00 }
-    },
-    "short dress": {
-      female: { scale: 0.90, x: 0.01, y: 0.04, z: 0.00 }
-    },
-    "gown": { scale: 1.10, x: 0.00, y: 0.04, z: 0.01 },
-    "Printed Shirt": { scale: 1.10, x: 0.00, y: 0.00, z: 0.00 }
-  };
-
   const { scene } = useGLTF(url);
 
   // Refs to avoid stale closures in useFrame
@@ -603,7 +646,7 @@ const ClothingModel = React.memo(({
       box.getSize(size);
 
       const combinedCat = (category + " " + (url || "") + " " + (name || "")).toLowerCase();
-      const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body");
+      const isFull = combinedCat.includes("dress") || combinedCat.includes("frock") || combinedCat.includes("full") || combinedCat.includes("suit") || combinedCat.includes("gown") || combinedCat.includes("body") || combinedCat.includes("outfit");
       const isBottom = !isFull && (combinedCat.includes("pant") || combinedCat.includes("trouser") || combinedCat.includes("bottom") || combinedCat.includes("short") || combinedCat.includes("jeans") || combinedCat.includes("lower") || combinedCat.includes("skirt") || combinedCat.includes("bottomwear"));
       const isTop = !isFull && !isBottom && (combinedCat.includes("top") || combinedCat.includes("shirt") || combinedCat.includes("tshirt") || combinedCat.includes("jacket") || combinedCat.includes("upper") || combinedCat.includes("vest"));
 
@@ -651,7 +694,10 @@ const ClothingModel = React.memo(({
       });
 
       // --- TUNE & LOG ---
-      console.log(`👗 [AUTO-SCALE] Final Scale Applied: ${(scaleToFit * 100).toFixed(1)}% of original`);
+      console.log(`👗 [AUTO-SCALE] Final Scale Applied: ${(scaleToFit * 100).toFixed(1)}% of original`, {
+        adjScale: adjustmentScale,
+        finalTotalScale: scaleToFit * adjustmentScale
+      });
 
       // Mark as ready AFTER initialization
       requestAnimationFrame(() => setIsInitialized(true));
@@ -669,11 +715,26 @@ const ClothingModel = React.memo(({
 
     const explicitCat = (category || "").toLowerCase();
     const lowCat = (url || "").toLowerCase();
+    const lowName = (name || "").toLowerCase();
 
     // 1. Detect garment type — significantly more robust detection
-    const isDress = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("gown") || lowCat.includes("bodycon") || lowCat.includes("full") || explicitCat.includes("dress") || explicitCat.includes("frock") || explicitCat.includes("suit");
-    const isBottom = !isDress && (explicitCat.includes("pant") || explicitCat.includes("trouser") || explicitCat.includes("bottom") || explicitCat.includes("short") || explicitCat.includes("jeans") || explicitCat.includes("lower") || explicitCat.includes("skirt") || explicitCat.includes("bottomwear") || lowCat.includes("pant") || lowCat.includes("bottom") || lowCat.includes("jeans") || lowCat.includes("trouser") || lowCat.includes("short"));
-    const isTop = !isDress && !isBottom && (explicitCat.includes("top") || explicitCat.includes("shirt") || explicitCat.includes("jacket") || explicitCat.includes("upper") || explicitCat.includes("vest") || lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("jacket") || lowCat.includes("tshirt"));
+    const isDress = lowCat.includes("dress") || lowCat.includes("frock") || lowCat.includes("gown") || lowCat.includes("bodycon") || lowCat.includes("full") || lowName.includes("dress") || lowName.includes("frock") || lowName.includes("gown") || lowName.includes("bodycon") || explicitCat.includes("dress") || explicitCat.includes("frock") || explicitCat.includes("suit");
+    const isBottom = !isDress && (explicitCat.includes("pant") || explicitCat.includes("trouser") || explicitCat.includes("bottom") || explicitCat.includes("short") || explicitCat.includes("jeans") || explicitCat.includes("lower") || explicitCat.includes("skirt") || explicitCat.includes("bottomwear") || lowCat.includes("pant") || lowCat.includes("bottom") || lowCat.includes("jeans") || lowCat.includes("trouser") || lowCat.includes("short") || lowName.includes("pant") || lowName.includes("jeans") || lowName.includes("lower"));
+    const isTop = !isDress && !isBottom && (explicitCat.includes("top") || explicitCat.includes("shirt") || explicitCat.includes("jacket") || explicitCat.includes("upper") || explicitCat.includes("vest") || lowCat.includes("top") || lowCat.includes("shirt") || lowCat.includes("jacket") || lowCat.includes("tshirt") || lowName.includes("top") || lowName.includes("shirt") || lowName.includes("tshirt"));
+
+    // --- PRECISION OVERRIDE LOOKUP ---
+    let precisionAdj = null;
+    const lookupName = name;
+    if (lookupName && PRECISION_OVERRIDES[lookupName]) {
+      const entry = PRECISION_OVERRIDES[lookupName];
+      precisionAdj = isMale ? (entry.male || entry) : (entry.female || entry);
+      console.error(`🎯 [PRECISION] Applying Overrides for ${name}:`, precisionAdj);
+    }
+
+    const liveScale = (adjustmentScale === 1.0 && precisionAdj) ? precisionAdj.scale : adjustmentScale;
+    const liveX = (adjustmentX === 0 && precisionAdj) ? (precisionAdj.x ?? 0) : adjustmentX;
+    const liveY = (adjustmentY === 0 && precisionAdj) ? (precisionAdj.y ?? 0) : adjustmentY;
+    const liveZ = (adjustmentZ === 0 && precisionAdj) ? (precisionAdj.z ?? 0) : adjustmentZ;
 
     const isFull = isDress; // Alias for clarity in pinning logic
 
@@ -725,7 +786,7 @@ const ClothingModel = React.memo(({
     }
 
     // Revert to uniform auto-scaling (Plus sizing multiplier)
-    let finalScaleValue = autoScale * adjustmentScale * sizingMultiplier;
+    let finalScaleValue = autoScale * liveScale * sizingMultiplier;
 
     // --- CROSS-GENDER COMPENSATION ---
     // If male body tries women's dress, apply user-vetted offset
@@ -807,7 +868,7 @@ const ClothingModel = React.memo(({
         newGeo.scale(finalScaleValue, finalYScale, applyZ);
 
         // Apply smart vertical offset + manual adjustments + gender offset + category offset
-        newGeo.translate(adjustmentX + genderXOffset + categoryXOffset, adjustmentY + smartYOffset + categoryYOffset, adjustmentZ + genderZOffset + categoryZOffset);
+        newGeo.translate(liveX + genderXOffset + categoryXOffset, liveY + smartYOffset + categoryYOffset, liveZ + genderZOffset + categoryZOffset);
         child.geometry = newGeo;
       }
     });
@@ -1107,6 +1168,7 @@ export default function AvatarViewer({
   measurements,
   clothingModelUrl,
   category,
+  faceParams = null,
   sizeChartData = null,
   availableSizes = ['S', 'M', 'L', 'XL'],
   initialSize = 'M',
@@ -1119,6 +1181,12 @@ export default function AvatarViewer({
   name = "",
   hideSaveLook = false
 }) {
+  console.log("🛠️ AvatarViewer Prop Check:", {
+    hasFaceParams: !!faceParams,
+    itemsCount: selectedItems?.length,
+    adjScale: adjustmentScale
+  });
+
   const [avatarSkeleton, setAvatarSkeleton] = useState(null);
 
   const [localClothingUrl, setLocalClothingUrl] = useState(clothingModelUrl);
@@ -1218,6 +1286,7 @@ export default function AvatarViewer({
               <AvatarModel
                 baseModelUrl={modelUrl}
                 measurements={measurements}
+                faceParams={faceParams}
                 onSkeletonLoaded={handleSkeletonLoaded}
                 onSceneDebug={setSceneDump}
                 tryOnCategory={activeCategories}
@@ -1265,11 +1334,17 @@ export default function AvatarViewer({
               const enforceDefaultWom = isWomensItem && isTopwearOrDress;
               const enforceDefaultMen = !isWomensItem && isTopwearOrDress;
 
+              // --- PRECISION OVERRIDE LOOKUP for Combination ---
+              const comboOverride = (item.name && PRECISION_OVERRIDES[item.name])
+                ? (isMale ? (PRECISION_OVERRIDES[item.name].male || PRECISION_OVERRIDES[item.name]) : (PRECISION_OVERRIDES[item.name].female || PRECISION_OVERRIDES[item.name]))
+                : null;
+
               const isLast = idx === selectedItems.length - 1;
-              const liveScale = isLast ? adjustmentScale : (enforceDefaultWom ? 0.83 : (enforceDefaultMen ? 1.0 : (item.adjustmentScale ?? 1.0)));
-              const liveX = isLast ? adjustmentX : (enforceDefaultWom ? 0.02 : (enforceDefaultMen ? 0.0 : (item.adjustmentX ?? 0)));
-              const liveY = isLast ? adjustmentY : (enforceDefaultWom ? 0.03 : (enforceDefaultMen ? 0.0 : (item.adjustmentY ?? 0)));
-              const liveZ = isLast ? adjustmentZ : (enforceDefaultWom ? 0.02 : (enforceDefaultMen ? 0.0 : (item.adjustmentZ ?? 0)));
+              const defaultScale = comboOverride ? comboOverride.scale : (enforceDefaultWom ? 0.83 : 1.0);
+              const liveScale = isLast ? adjustmentScale : (item.adjustmentScale ?? defaultScale);
+              const liveX = isLast ? adjustmentX : (item.adjustmentX ?? (comboOverride ? comboOverride.x : (enforceDefaultWom ? 0.02 : 0)));
+              const liveY = isLast ? adjustmentY : (item.adjustmentY ?? (comboOverride ? comboOverride.y : (enforceDefaultWom ? 0.03 : 0)));
+              const liveZ = isLast ? adjustmentZ : (item.adjustmentZ ?? (comboOverride ? comboOverride.z : (enforceDefaultWom ? 0.02 : 0)));
 
               return (
                 <ModelErrorBoundary key={`${item.id || idx}-${itemUrl}`}>

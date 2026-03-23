@@ -8,7 +8,7 @@ import math
 from mediapipe.tasks import python  # type: ignore[import-unresolved]
 from mediapipe.tasks.python import vision  # type: ignore[import-unresolved]
 
-def analyze_face(image_path):
+def analyze_face(image_path, output_dir=None):
     # Path to the model file
     script_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(script_dir, "models", "face_landmarker.task")
@@ -41,13 +41,26 @@ def analyze_face(image_path):
                     local_path = tmp.name
                 
                 mp_image = mp.Image.create_from_file(local_path)
-                
-                # Cleanup temporary file later or keep track
-                # For simplicity, we just use it and it will be cleaned up by OS eventually or we can manually delete
             else:
                 mp_image = mp.Image.create_from_file(image_path)
         except Exception as e:
             return {"error": f"Could not read image: {str(e)}"}
+        
+        # Determine base directory for outputs
+        if output_dir:
+            final_output_dir = output_dir
+        else:
+            if image_path.startswith('http'):
+                # Default to current directory if URL and no output_dir provided
+                final_output_dir = os.path.join(script_dir, "..", "uploads", "faces")
+            else:
+                final_output_dir = os.path.dirname(image_path)
+        
+        if not os.path.exists(final_output_dir):
+            try:
+                os.makedirs(final_output_dir, exist_ok=True)
+            except:
+                pass
 
         # Process image
         results = landmarker.detect(mp_image)
@@ -274,9 +287,15 @@ def analyze_face(image_path):
                         face_rgba[:, :, 3] = (mask * 255).astype(np.uint8)  # type: ignore[attr-defined]
                         
                         # Save as PNG
-                        base_path = os.path.splitext(image_path)[0]
-                        texture_filename = os.path.basename(str(base_path)) + "_texture.png"
-                        texture_save_path = str(base_path) + "_texture.png"
+                        if image_path.startswith('http'):
+                            # Create a unique name from the URL or timestamp
+                            import hashlib
+                            unique_id = hashlib.md5(image_path.encode()).hexdigest()[:8]
+                            texture_filename = f"face_{unique_id}_texture.png"
+                        else:
+                            texture_filename = os.path.basename(os.path.splitext(image_path)[0]) + "_texture.png"
+                            
+                        texture_save_path = os.path.join(final_output_dir, texture_filename)
                         
                         cv2.imwrite(texture_save_path, face_rgba)
                         print(f"DEBUG: Saved Feathered Texture to {texture_save_path}", file=sys.stderr)
@@ -313,8 +332,10 @@ if __name__ == "__main__":
         sys.exit(1)
         
     image_path = sys.argv[1]
+    output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    
     try:
-        result = analyze_face(image_path)
+        result = analyze_face(image_path, output_dir)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({"error": str(e)}))

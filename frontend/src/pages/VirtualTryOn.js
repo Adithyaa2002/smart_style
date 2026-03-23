@@ -52,12 +52,9 @@ const VirtualTryOn = () => {
     let defY = 0;
     let defZ = 0;
 
-    if (isWomen && isTopwearOrDress) {
-      defScale = 0.83;
-      defX = 0.02;
-      defY = 0.03;
-      defZ = 0.02;
-    }
+    // NOTE: We no longer hardcode 0.83 for women's tops.
+    // The database values (adjustmentScale, etc.) are the source of truth.
+    // If the DB has neutral values (all 0/1), we simply use 1.0 fallback.
 
     const dbScale = lastProduct.adjustmentScale ?? 1.0;
     const dbX = lastProduct.adjustmentX ?? 0;
@@ -74,11 +71,12 @@ const VirtualTryOn = () => {
       scale: lastProduct.adjustmentScale,
       y: lastProduct.adjustmentY
     });
+    // Priority Fix: Use DB values if they exist (non-neutral), otherwise use defaults
     setClothingAdj({
-      scale: (isNeutralDB || forceDefaults) ? defScale : dbScale,
-      x: (isNeutralDB || forceDefaults) ? defX : dbX,
-      y: (isNeutralDB || forceDefaults) ? defY : dbY,
-      z: (isNeutralDB || forceDefaults) ? defZ : dbZ,
+      scale: isNeutralDB ? defScale : dbScale,
+      x: isNeutralDB ? defX : dbX,
+      y: isNeutralDB ? defY : dbY,
+      z: isNeutralDB ? defZ : dbZ,
     });
   }, [selectedProducts]); // Fix: Watch the array itself, not just length
 
@@ -121,6 +119,20 @@ const VirtualTryOn = () => {
       if (data.success) {
         setFaceParams(data.faceParams);
         localStorage.setItem('faceParams', JSON.stringify(data.faceParams));
+
+        // 🔥 PERSIST TO BACKEND
+        const userData = getUserData();
+        if (userData && userData.email) {
+          try {
+            await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ faceParams: data.faceParams })
+            });
+          } catch (err) {
+            console.error("Failed to sync faceParams:", err);
+          }
+        }
         alert("✅ Face Generated Successfully! Switch to Preview to see changes.");
       } else {
         alert("❌ Error: " + (data.message || 'Face analysis failed'));
@@ -130,6 +142,29 @@ const VirtualTryOn = () => {
       alert("❌ Upload Failed: " + error.message);
     } finally {
       setIsFaceLoading(false);
+    }
+  };
+
+  const handleResetFace = async () => {
+    if (!window.confirm("Reset avatar skin color to original?")) return;
+    setFaceParams(null);
+    localStorage.removeItem("faceParams");
+
+    // 🔥 PERSIST TO BACKEND
+    const userData = getUserData();
+    if (userData && userData.email) {
+      try {
+        await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ faceParams: null })
+        });
+        toast.success("Avatar reset to original! ✨");
+      } catch (err) {
+        console.error("Failed to sync reset:", err);
+      }
+    } else {
+      toast.success("Avatar reset locally! ✨");
     }
   };
 
@@ -156,10 +191,17 @@ const VirtualTryOn = () => {
         const response = await fetch(`http://localhost:5000/api/customer/${encodeURIComponent(userData.email)}`);
         const data = await response.json();
         console.log("📥 Received history data:", data);
-        if (data && data.tryOnHistory) {
-          setTryOnHistory(data.tryOnHistory);
-        } else {
-          console.log("📭 No tryOnHistory found in response");
+        if (data) {
+          if (data.tryOnHistory) setTryOnHistory(data.tryOnHistory);
+          // 🔄 Sync state from Database
+          if (data.measurements) {
+            setMeasurements(prev => ({ ...prev, ...data.measurements }));
+            localStorage.setItem("userMeasurements", JSON.stringify(data.measurements));
+          }
+          if (data.faceParams) {
+            setFaceParams(data.faceParams);
+            localStorage.setItem("faceParams", JSON.stringify(data.faceParams));
+          }
         }
       } catch (err) {
         console.error("❌ Failed to fetch history:", err);
@@ -647,6 +689,22 @@ const VirtualTryOn = () => {
                 </div>
               )}
 
+              {/* Avatar Reset Control (Floating top right) */}
+              {faceParams && (
+                <button 
+                  onClick={handleResetFace}
+                  style={{
+                    position: 'absolute', top: '20px', right: '20px',
+                    padding: '8px 15px', borderRadius: '20px', border: 'none',
+                    background: 'rgba(0,0,0,0.6)', color: 'white',
+                    fontSize: '0.8rem', cursor: 'pointer', zIndex: 100,
+                    backdropFilter: 'blur(4px)', fontWeight: 'bold'
+                  }}
+                >
+                  🔄 Reset Avatar Color
+                </button>
+              )}
+
               {isLoading ? (
                 <div className="loading-preview" style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.8)' }}>
                   <div className="spinner"></div>
@@ -666,6 +724,7 @@ const VirtualTryOn = () => {
                       category={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].type || selectedProducts[selectedProducts.length - 1].category) : ""}
                       name={selectedProducts.length > 0 ? (selectedProducts[selectedProducts.length - 1].name || selectedProducts[selectedProducts.length - 1].productName || selectedProducts[selectedProducts.length - 1].title || "Garment") : ""}
                       faceParams={faceParams}
+                      selectedItems={selectedProducts}
                       adjustmentScale={clothingAdj.scale}
                       adjustmentX={clothingAdj.x}
                       adjustmentY={clothingAdj.y}

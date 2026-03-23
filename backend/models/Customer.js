@@ -20,6 +20,10 @@ const CustomerSchema = new mongoose.Schema({
     waist: String,
     hips: String,
   },
+  faceParams: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed
+  },
 
   tryOnHistory: [{
     productId: String,

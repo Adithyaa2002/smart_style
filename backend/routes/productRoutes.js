@@ -11,6 +11,7 @@ const fs = require("fs");
 const router = express.Router();
 
 const mongoose = require("mongoose");
+const isOffline = () => mongoose.connection.readyState !== 1;
 
 // --------------------- TEST ROUTE ---------------------
 router.get("/test-route", (req, res) => {
@@ -124,61 +125,61 @@ router.post("/", upload.fields([{ name: 'image', maxCount: 1 }, { name: 'model3D
 
 // --------------------- GET ALL PRODUCTS ---------------------
 router.get("/", async (req, res) => {
+  const loadFallback = () => {
+    try {
+      const fallbackPath = path.join(__dirname, "../data/products_fallback.json");
+      if (fs.existsSync(fallbackPath)) {
+        return JSON.parse(fs.readFileSync(fallbackPath, "utf-8"));
+      }
+    } catch (e) {
+      console.error("Error loading fallback data:", e);
+    }
+    return [];
+  };
+
+  if (isOffline()) {
+    console.log("⚠️ Database is offline. Serving fallback products.");
+    return res.json(loadFallback());
+  }
+
   try {
     const { category, gender, minPrice, maxPrice, search, brand, minRating, sort, vendorId } = req.query;
 
     // Build query object
     let query = {};
 
-    // ✅ VENDOR FILTER (Security/Isolation)
-    if (vendorId) {
-      query.vendorId = vendorId;
-    }
-
-    if (category) {
-      // Case-insensitive match
-      query.category = { $regex: new RegExp(category, "i") };
-    }
-
-    if (gender) {
-      // Exact match (case insensitive) to avoid 'Men' matching 'Women'
-      query.gender = { $regex: new RegExp(`^${gender}$`, "i") };
-    }
-
-    if (brand) {
-      query.brand = { $regex: new RegExp(brand, "i") };
-    }
-
-    if (minRating) {
-      query.rating = { $gte: Number(minRating) };
-    }
-
+    // ... (rest of the query building logic remains unchanged)
+    if (vendorId) query.vendorId = vendorId;
+    if (category) query.category = { $regex: new RegExp(category, "i") };
+    if (gender) query.gender = { $regex: new RegExp(`^${gender}$`, "i") };
+    if (brand) query.brand = { $regex: new RegExp(brand, "i") };
+    if (minRating) query.rating = { $gte: Number(minRating) };
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
+    if (search) query.name = { $regex: new RegExp(search, "i") };
 
-    if (search) {
-      query.name = { $regex: new RegExp(search, "i") };
-    }
+    console.log("🔍 Product Filter Query:", JSON.stringify(query, null, 2));
 
-    console.log("🔍 Product Filter Query:", JSON.stringify(query, null, 2)); // DEBUG LOG
-
-    // Sorting Logic
     let sortOption = {};
     if (sort === "price_asc") sortOption = { price: 1 };
     else if (sort === "price_desc") sortOption = { price: -1 };
     else if (sort === "newest") sortOption = { createdAt: -1 };
-    else if (sort === "rating") sortOption = { rating: -1, "reviews.length": -1 }; // High rating, then most reviews
-    else sortOption = { _id: -1 }; // Default to newest added (roughly)
+    else if (sort === "rating") sortOption = { rating: -1, "reviews.length": -1 };
+    else sortOption = { _id: -1 };
 
-    const products = await Product.find(query).sort(sortOption);
-    console.log(`📦 Found ${products.length} products`); // DEBUG LOG
+    const products = await Product.find(query).sort(sortOption).catch(err => {
+      console.error("❌ Database query failed. Serving fallback products.");
+      return loadFallback();
+    });
 
+    console.log(`📦 Serving ${products.length} products`);
     res.json(products);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.warn("⚠️ Error in product route, serving fallback:", err.message);
+    res.json(loadFallback());
   }
 });
 
@@ -207,6 +208,10 @@ router.delete("/:id", async (req, res) => {
 
 // --------------------- GET RECOMMENDATIONS ---------------------
 router.get("/recommendations", async (req, res) => {
+  if (isOffline()) {
+    return res.json([]); // Return empty array if offline
+  }
+
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "User ID required" });

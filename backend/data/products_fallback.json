@@ -1,0 +1,47 @@
+[
+  {
+    "_id": "offline_dress_1",
+    "name": "Elegant Black Dress (Offline)",
+    "price": 2499,
+    "category": "Dresses",
+    "gender": "Women",
+    "brand": "SmartStyle",
+    "rating": 4.8,
+    "sizes": ["S", "M", "L", "XL"],
+    "colors": ["Black"],
+    "stock": 50,
+    "description": "A stunning black dress for special occasions. (Available in offline mode)",
+    "image": "/uploads/1772096084599-dress.jpg",
+    "model3D": "/uploads/1768588461510-black_dress.glb"
+  },
+  {
+    "_id": "offline_dress_2",
+    "name": "Floral Summer Dress (Offline)",
+    "price": 1899,
+    "category": "Dresses",
+    "gender": "Women",
+    "brand": "SmartStyle",
+    "rating": 4.5,
+    "sizes": ["M", "L"],
+    "colors": ["Blue", "Pink"],
+    "stock": 30,
+    "description": "Lightweight and comfortable floral dress for summer. (Available in offline mode)",
+    "image": "/uploads/1770053989467-Screenshot 2026-02-02 230550.png",
+    "model3D": "/uploads/1770053640915-dress1.glb"
+  },
+  {
+    "_id": "offline_shirt_1",
+    "name": "Classic White Shirt (Offline)",
+    "price": 1299,
+    "category": "Shirts",
+    "gender": "Men",
+    "brand": "SmartStyle",
+    "rating": 4.2,
+    "sizes": ["M", "L", "XL"],
+    "colors": ["White"],
+    "stock": 100,
+    "description": "Formal white shirt for men. (Available in offline mode)",
+    "image": "/uploads/1772613647259-Screenshot 2026-03-03 154318.png",
+    "model3D": "/uploads/1772613647260-maledrss.glb"
+  }
+]

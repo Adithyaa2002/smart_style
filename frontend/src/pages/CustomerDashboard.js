@@ -28,7 +28,6 @@ const CustomerDashboard = ({ user, onLogout }) => {
   );
   const [measurements, setMeasurements] = useState(() => {
     const saved = localStorage.getItem("userMeasurements");
-    // Ensure all fields exist
     const parsed = saved ? JSON.parse(saved) : {};
     return {
       height: parsed.height || "",
@@ -36,9 +35,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
       chest: parsed.chest || "",
       waist: parsed.waist || "",
       hips: parsed.hips || "",
-      thigh: parsed.thigh || "",
-      shoulders: parsed.shoulders || "",
-      gender: parsed.gender || "", // Added Gender
+      gender: parsed.gender || "female",
     };
   });
 
@@ -49,19 +46,34 @@ const CustomerDashboard = ({ user, onLogout }) => {
     return !localStorage.getItem("userMeasurements");
   });
 
-  const handleGenerateAvatar = () => {
+  const [faceParams, setFaceParams] = useState(() => {
+    const saved = localStorage.getItem("faceParams");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleGenerateAvatar = async () => {
     setGeneratedMeasurements({ ...measurements });
     localStorage.setItem("userMeasurements", JSON.stringify(measurements));
+
+    // 🔥 PERSIST TO BACKEND
+    if (customer?.email) {
+      try {
+        await axios.put(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}`, {
+          measurements,
+          faceParams
+        });
+        toast.info("Profile synced to cloud ✨");
+      } catch (err) {
+        console.error("Failed to sync profile:", err);
+      }
+    }
+
     setIsMeasurementEditable(false);
     toast.success("Avatar generated & saved!");
   };
 
   const [activeTab, setActiveTab] = useState(location.state?.activeTab || "home");
   const [avatarPhoto, setAvatarPhoto] = useState(null);
-  const [faceParams, setFaceParams] = useState(() => {
-    const saved = localStorage.getItem("faceParams");
-    return saved ? JSON.parse(saved) : null;
-  });
   const [isFaceLoading, setIsFaceLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState([]);
@@ -128,10 +140,21 @@ const CustomerDashboard = ({ user, onLogout }) => {
     axios
       .get(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}`)
       .then((res) => {
-        if (res.data) setCustomer(res.data);
+        if (res.data) {
+          setCustomer(res.data);
+          // 🔄 Sync state from Database
+          if (res.data.measurements) {
+            setMeasurements(prev => ({ ...prev, ...res.data.measurements }));
+            setGeneratedMeasurements(res.data.measurements);
+          }
+          if (res.data.faceParams) {
+            setFaceParams(res.data.faceParams);
+            localStorage.setItem("faceParams", JSON.stringify(res.data.faceParams));
+          }
+        }
       })
       .catch((err) => console.log("❌ Failed to load profile", err));
-  }, [customer.email]);
+  }, [customer?.email]);
 
   // --- Re-Fetch profile on switching to 'history' tab to get latest tryOnHistory ---
   useEffect(() => {
@@ -287,6 +310,26 @@ const CustomerDashboard = ({ user, onLogout }) => {
       toast.error("❌ Upload Failed: " + error.message);
     } finally {
       setIsFaceLoading(false);
+    }
+  };
+
+  const handleResetFace = async () => {
+    if (!window.confirm("Reset avatar skin color to original?")) return;
+    setFaceParams(null);
+    localStorage.removeItem("faceParams");
+
+    // 🔥 PERSIST TO BACKEND
+    if (customer?.email) {
+      try {
+        await axios.put(`http://localhost:5000/api/customer/${encodeURIComponent(customer.email)}`, {
+          faceParams: null
+        });
+        toast.success("Avatar reset to original! ✨");
+      } catch (err) {
+        console.error("Failed to sync reset:", err);
+      }
+    } else {
+      toast.success("Avatar reset locally! ✨");
     }
   };
 
@@ -888,16 +931,33 @@ const CustomerDashboard = ({ user, onLogout }) => {
                     </div>
 
                     <div style={{ margin: "10px 0", borderTop: "1px solid #ddd", paddingTop: "10px" }}>
-                      <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Upload Face Photo</label>
+                      <label style={{ display: "block", fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>Face Customization</label>
                       <input
                         type="file"
                         id="avatar-face-upload"
                         accept="image/*"
                         onChange={handleFaceUpload}
                         disabled={isFaceLoading || !isMeasurementEditable}
-                        style={{ fontSize: "0.8rem", width: "100%" }}
+                        style={{ fontSize: "0.8rem", width: "100%", marginBottom: "5px" }}
                       />
-                      {isFaceLoading && <small style={{ color: "#e91e63" }}>Processing Face AI...</small>}
+                      {isFaceLoading && <small style={{ color: "#e91e63", display: "block", marginBottom: "5px" }}>Processing Face AI...</small>}
+                      
+                      <button 
+                        onClick={handleResetFace}
+                        disabled={!faceParams || !isMeasurementEditable}
+                        style={{
+                          width: "100%",
+                          padding: "5px",
+                          fontSize: "0.75rem",
+                          backgroundColor: "#f8f9fa",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          cursor: faceParams ? "pointer" : "not-allowed",
+                          color: faceParams ? "#333" : "#999"
+                        }}
+                      >
+                        🔄 Reset to Original Color
+                      </button>
                     </div>
 
                     {["chest", "waist", "hips", "thigh", "shoulders"].map((m) => {

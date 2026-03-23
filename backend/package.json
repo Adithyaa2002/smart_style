@@ -23,6 +23,7 @@
     "mediapipe": "^0.0.1-security",
     "mongoose": "^8.19.1",
     "multer": "^2.0.2",
+    "multer-gridfs-storage": "^5.0.2",
     "nodemailer": "^7.0.13",
     "razorpay": "^2.9.6",
     "sib-api-v3-sdk": "^8.5.0"
